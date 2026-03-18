@@ -1,0 +1,17 @@
+[
+  {
+    "company_id": 3363,
+    "name": "Retailer A",
+    "brand": "Furniture"
+  },
+  {
+    "company_id": 4456,
+    "name": "Retailer B",
+    "brand": "Food"
+  },
+  {
+    "company_id": 4410,
+    "name": "Retailer C",
+    "brand": "Vintage fashion"
+  }
+]
