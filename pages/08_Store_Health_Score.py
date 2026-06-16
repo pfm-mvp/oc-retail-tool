@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
+import requests
 import streamlit as st
 import plotly.graph_objects as go
 
@@ -17,23 +18,67 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from helpers_shop import ID_TO_NAME, SHOP_NAME_MAP_NORM
 from helpers_clients import load_clients
 from helpers_periods import period_catalog
 from helpers_normalize import normalize_vemcount_response
 from stylesheet import inject_css as inject_full_css, get_css, pfm_altair
+from services.health_score_service import (
+    compute_store_health,
+    compute_health_batch,
+    classify_score,
+    get_weights,
+    SCORE_COLORS,
+    DEFAULT_WEIGHTS,
+    FORMAT_WEIGHTS,
+)
 
 # ── API URL — same pattern as other pages (05C, 06, 07) ────────────────────
 raw_api_url = st.secrets["API_URL"].rstrip("/")
 if raw_api_url.endswith("/get-report"):
     REPORT_URL = raw_api_url
+    FASTAPI_BASE_URL = raw_api_url.rsplit("/get-report", 1)[0]
 else:
     REPORT_URL = raw_api_url + "/get-report"
+    FASTAPI_BASE_URL = raw_api_url
 
-import requests as _requests
+# ── Region mapping ─────────────────────────────────────────────────────────
+@st.cache_data(ttl=600)
+def load_region_mapping(path: str = "data/regions.csv") -> pd.DataFrame:
+    try:
+        df = pd.read_csv(path, sep=";")
+    except Exception:
+        return pd.DataFrame()
+    if "shop_id" not in df.columns or "region" not in df.columns:
+        return pd.DataFrame()
+    df["shop_id"] = pd.to_numeric(df["shop_id"], errors="coerce").astype("Int64")
+    df["region"] = df["region"].astype(str)
+    if "sqm_override" in df.columns:
+        df["sqm_override"] = pd.to_numeric(df["sqm_override"], errors="coerce")
+    else:
+        df["sqm_override"] = np.nan
+    if "store_label" in df.columns:
+        df["store_label"] = df["store_label"].astype(str)
+    else:
+        df["store_label"] = np.nan
+    if "store_type" in df.columns:
+        df["store_type"] = df["store_type"].astype(str)
+    else:
+        df["store_type"] = np.nan
+    df = df.dropna(subset=["shop_id"])
+    return df
+
+@st.cache_data(ttl=600)
+def get_locations_by_company(company_id: int) -> pd.DataFrame:
+    url = f"{FASTAPI_BASE_URL.rstrip('/')}/company/{company_id}/location"
+    resp = requests.get(url, timeout=60)
+    resp.raise_for_status()
+    data = resp.json()
+    if isinstance(data, dict) and "locations" in data:
+        return pd.DataFrame(data["locations"])
+    return pd.DataFrame(data)
 
 def api_get_report_local(params, timeout=60):
-    """POST to /get-report — mirrors utils_pfmx.api_get_report but uses page-level URL."""
+    """POST to /get-report with flat repeated params."""
     expanded = []
     for k, v in params:
         key = str(k)
@@ -45,7 +90,7 @@ def api_get_report_local(params, timeout=60):
         else:
             expanded.append((key, str(v)))
     try:
-        r = _requests.post(REPORT_URL, params=expanded, timeout=timeout)
+        r = requests.post(REPORT_URL, params=expanded, timeout=timeout)
         if r.status_code >= 400:
             return {"_error": True, "status": r.status_code, "_url": r.request.url, "_method": "POST", "exception": f"HTTP {r.status_code}"}
         return r.json()
@@ -57,15 +102,6 @@ def friendly_error(js):
         st.error(f"API call failed — status: {js.get('status')} | url: {js.get('_url')} | {js.get('exception')}")
         return True
     return False
-from services.health_score_service import (
-    compute_store_health,
-    compute_health_batch,
-    classify_score,
-    get_weights,
-    SCORE_COLORS,
-    DEFAULT_WEIGHTS,
-    FORMAT_WEIGHTS,
-)
 
 # ── Brand colours ────────────────────────────────────────────────────────────
 PFM_PURPLE = "#762181"
@@ -113,12 +149,6 @@ def fmt_int(x):
     except Exception:
         return "–"
 
-def fmt_score(x):
-    try:
-        return f"{x:.0f}"
-    except Exception:
-        return "–"
-
 # ── KPI keys ────────────────────────────────────────────────────────────────
 KPI_KEYS = [
     "count_in", "count_out", "turnover",
@@ -126,29 +156,104 @@ KPI_KEYS = [
     "sales_per_sqm", "inside",
 ]
 
+# ── Score bands ─────────────────────────────────────────────────────────────
+band_labels = {
+    "excellent": "🟢 Uitstekend",
+    "good": "🟢 Goed",
+    "attention": "🟠 Aandacht nodig",
+    "critical": "🔴 Kritiek",
+    "unknown": "⚪ Onbekend",
+}
+
 # ── Sidebar ─────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 🩺 Store Health Score")
     st.caption("Één score. Vijf pijlers. Direct actiegericht.")
 
-    # Client selectie
+    # ── 1. Client selectie ───────────────────────────────────────────────────
     clients = load_clients()
     client_options = {c["company_id"]: f"{c['brand']} ({c['name']})" for c in clients}
-    selected_client = st.selectbox(
-        "Client",
+    selected_client_id = st.selectbox(
+        "Retailer",
         options=list(client_options.keys()),
         format_func=lambda x: client_options[x],
         index=0,
     )
 
-    # Periode
+    # ── 2. Fetch shops for this client ──────────────────────────────────────
+    try:
+        locations_df = get_locations_by_company(selected_client_id)
+    except Exception as e:
+        st.error(f"Kon winkels niet ophalen: {e}")
+        locations_df = pd.DataFrame()
+
+    if not locations_df.empty:
+        locations_df["id"] = pd.to_numeric(locations_df["id"], errors="coerce").astype("Int64")
+
+        # Merge with region mapping for store names / types
+        region_map = load_region_mapping()
+        if not region_map.empty:
+            merged = locations_df.merge(region_map, left_on="id", right_on="shop_id", how="inner")
+        else:
+            merged = locations_df.copy()
+            merged["region"] = "Onbekend"
+            merged["shop_id"] = merged["id"]
+
+        if "store_label" in merged.columns and merged["store_label"].notna().any():
+            merged["store_display"] = merged["store_label"]
+        elif "name" in merged.columns:
+            merged["store_display"] = merged["name"]
+        else:
+            merged["store_display"] = merged["id"].astype(str)
+
+        merged["store_type"] = (
+            merged.get("store_type", "Unknown")
+            .fillna("Unknown")
+            .astype(str)
+            .str.strip()
+            .replace({"": "Unknown", "nan": "Unknown", "None": "Unknown"})
+        )
+
+        merged["id_int"] = pd.to_numeric(merged["id"], errors="coerce").astype("Int64")
+        merged = merged.dropna(subset=["id_int"])
+        merged["id_int"] = merged["id_int"].astype(int)
+
+        store_dim = merged[["id_int", "store_display", "region", "store_type"]].drop_duplicates()
+
+        if not store_dim.empty:
+            # Build dropdown labels: "StoreName · region (ID)"
+            store_dim["dd_label"] = (
+                store_dim["store_display"].fillna(store_dim["id_int"].astype(str))
+                + " · " + store_dim["region"]
+                + " (" + store_dim["id_int"].astype(str) + ")"
+            )
+
+            selected_shop_label = st.selectbox(
+                "Winkel",
+                options=store_dim["dd_label"].tolist(),
+                index=0,
+            )
+            selected_row = store_dim[store_dim["dd_label"] == selected_shop_label].iloc[0]
+            selected_shop_id = int(selected_row["id_int"])
+            selected_shop_name = selected_row["store_display"]
+            selected_region = selected_row["region"]
+        else:
+            st.warning("Geen winkels gevonden voor deze retailer.")
+            selected_shop_id = None
+    else:
+        st.warning("Geen locaties gevonden voor deze retailer.")
+        selected_shop_id = None
+
+    st.markdown("---")
+
+    # ── 3. Periode ──────────────────────────────────────────────────────────
     today = date.today()
     periods = period_catalog(today)
     period_labels = list(periods.keys())
     selected_period_label = st.selectbox("Periode", period_labels, index=len(period_labels) - 1)
     selected_period = periods[selected_period_label]
 
-    # Formaat
+    # ── 4. Formaat ──────────────────────────────────────────────────────────
     store_format = st.radio(
         "Winkel formaat",
         options=["default", "growth", "shrink"],
@@ -170,6 +275,11 @@ with st.sidebar:
         }
         st.caption(f"{labels[key]}: {w:.0%}")
 
+# ── Guard: need shop ─────────────────────────────────────────────────────────
+if selected_shop_id is None:
+    st.info("Selecteer een retailer en winkel in de sidebar.")
+    st.stop()
+
 # ── Header ──────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="pfm-header pfm-header--fixed">
@@ -181,10 +291,10 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ── Data ophalen ─────────────────────────────────────────────────────────────
-with st.spinner("Data ophalen..."):
-    params = []
-    for sid in ID_TO_NAME.keys():
-        params.append(("data", sid))
+with st.spinner(f"Data ophalen voor {selected_shop_name}..."):
+    params = [
+        ("data", selected_shop_id),
+    ]
     for k in KPI_KEYS:
         params.append(("data_output", k))
     params += [
@@ -199,10 +309,12 @@ with st.spinner("Data ophalen..."):
     if friendly_error(js):
         st.stop()
 
-    df = normalize_vemcount_response(js, ID_TO_NAME, kpi_keys=KPI_KEYS)
+    # Build a name map for this single shop
+    shop_name_map = {selected_shop_id: selected_shop_name}
+    df = normalize_vemcount_response(js, shop_name_map, kpi_keys=KPI_KEYS)
 
     if df is None or df.empty:
-        st.warning("Geen data ontvangen voor deze periode/parameters.")
+        st.warning("Geen data ontvangen voor deze winkel/periode.")
         with st.expander("🔧 Debug"):
             st.write("Params:", params)
             st.write("API response keys:", list(js.keys()) if isinstance(js, dict) else type(js))
@@ -218,51 +330,48 @@ if "date" not in df.columns:
 
 df = df[pd.notna(df.get("shop_id"))]
 
+if df.empty:
+    st.warning("Geen geldige data na filtering.")
+    st.stop()
+
 # ── Aggregate per store ────────────────────────────────────────────────────
 agg_cols = {}
 for col in KPI_KEYS:
     if col in df.columns:
         if col in ("conversion_rate", "sales_per_visitor", "sales_per_sqm"):
-            # Weighted average by footfall
             agg_cols[col] = "mean"
         else:
             agg_cols[col] = "sum"
 
 store_agg = df.groupby(["shop_id", "shop_name"], as_index=False).agg(agg_cols)
+store_agg = store_agg.rename(columns={"count_in": "footfall"})
 
-# Rename for clarity
-rename_map = {"count_in": "footfall"}
-store_agg = store_agg.rename(columns=rename_map)
-
-# ── Compute health scores ──────────────────────────────────────────────────
+# ── Compute health score ──────────────────────────────────────────────────
 results = compute_health_batch(store_agg, store_key_col="shop_id", store_format=store_format)
 
 if not results:
-    st.warning("Kon geen health scores berekenen — onvoldoende data.")
+    st.warning("Kon geen health score berekenen — onvoldoende data.")
     st.stop()
 
-# ── Main display ────────────────────────────────────────────────────────────
-# Sort by health score descending
-results_sorted = sorted(results, key=lambda r: r.health_score if pd.notna(r.health_score) else -1, reverse=True)
-
-# ── Hero: Top store or selected store ───────────────────────────────────────
-best = results_sorted[0]
-worst = results_sorted[-1]
+# Take the result for the selected shop (should be only 1, but handle gracefully)
+result = results[0]
 
 # ── Score gauge ────────────────────────────────────────────────────────────
 col_gauge, col_detail = st.columns([1, 2])
 
 with col_gauge:
-    # Main score gauge
     fig_gauge = go.Figure(go.Indicator(
         mode="gauge+number",
-        value=best.health_score if pd.notna(best.health_score) else 0,
+        value=result.health_score if pd.notna(result.health_score) else 0,
         domain={"x": [0, 1], "y": [0, 1]},
-        title={"text": f"<b>{best.store_name}</b><br><span style='font-size:0.8em;color:gray'>Store Health Score</span>", "font": {"size": 16}},
-        number={"font": {"size": 48, "color": best.health_color}},
+        title={
+            "text": f"<b>{result.store_name}</b><br><span style='font-size:0.8em;color:gray'>Store Health Score</span>",
+            "font": {"size": 16},
+        },
+        number={"font": {"size": 48, "color": result.health_color}},
         gauge={
             "axis": {"range": [0, 100], "tickwidth": 1, "tickcolor": PFM_GRAY},
-            "bar": {"color": best.health_color, "thickness": 0.3},
+            "bar": {"color": result.health_color, "thickness": 0.3},
             "bgcolor": PFM_LIGHT,
             "steps": [
                 {"range": [0, 45], "color": "#FEE2E2"},
@@ -281,36 +390,19 @@ with col_gauge:
     )
     st.plotly_chart(fig_gauge, use_container_width=True)
 
-    # Band label
-    band_labels = {
-        "excellent": "🟢 Uitstekend",
-        "good": "🟢 Goed",
-        "attention": "🟠 Aandacht nodig",
-        "critical": "🔴 Kritiek",
-        "unknown": "⚪ Onbekend",
-    }
-    st.markdown(f"<div style='text-align:center; margin-top:-10px;'>"
-                f"<span style='font-size:1.3rem; font-weight:800; color:{best.health_color};'>"
-                f"{band_labels.get(best.health_band, '–')}</span></div>",
-                unsafe_allow_html=True)
+    st.markdown(
+        f"<div style='text-align:center; margin-top:-10px;'>"
+        f"<span style='font-size:1.3rem; font-weight:800; color:{result.health_color};'>"
+        f"{band_labels.get(result.health_band, '–')}</span></div>",
+        unsafe_allow_html=True,
+    )
 
 with col_detail:
     # ── Pillar bars ────────────────────────────────────────────────────────
     st.markdown("#### Pijler Scores")
 
-    pillar_data = []
-    for p in best.pillars:
-        score_display = f"{p.score:.0f}" if pd.notna(p.score) else "–"
-        pillar_data.append({
-            "Pijler": p.label,
-            "Score": p.score if pd.notna(p.score) else 0,
-            "Score Display": score_display,
-            "Gewicht": f"{p.weight:.0%}",
-            "Toelichting": p.reason or "–",
-        })
-
     fig_pillars = go.Figure()
-    for i, p in enumerate(best.pillars):
+    for p in result.pillars:
         score_val = p.score if pd.notna(p.score) else 0
         color = "#22C55E" if score_val >= 75 else "#84CC16" if score_val >= 60 else "#F59E0B" if score_val >= 45 else "#EF4444"
 
@@ -339,76 +431,35 @@ with col_detail:
     st.plotly_chart(fig_pillars, use_container_width=True)
 
     # ── Action hint ────────────────────────────────────────────────────────
-    if best.action_hint:
+    if result.action_hint:
         st.markdown(f"""
         <div class="callout">
           <div class="callout-title">💡 Actie</div>
-          <div class="callout-sub">{best.action_hint}</div>
+          <div class="callout-sub">{result.action_hint}</div>
         </div>
         """, unsafe_allow_html=True)
 
-# ── Store selector ──────────────────────────────────────────────────────────
+# ── Pillar detail table ─────────────────────────────────────────────────────
 st.markdown("---")
-st.markdown("### 📊 Alle winkels — Health Score overzicht")
+st.markdown("### 📊 Pijler details")
 
-# Build summary dataframe
-summary_rows = []
-for r in results:
-    pillar_scores = {p.key: (p.score if pd.notna(p.score) else None) for p in r.pillars}
-    summary_rows.append({
-        "Winkel": r.store_name,
-        "Health": r.health_score if pd.notna(r.health_score) else None,
-        "Band": band_labels.get(r.health_band, "–"),
-        "Traffic": pillar_scores.get("traffic_vitality"),
-        "Conversie": pillar_scores.get("conversion_power"),
-        "Ruimte": pillar_scores.get("space_efficiency"),
-        "Klantwaarde": pillar_scores.get("customer_value"),
-        "Data Trust": pillar_scores.get("data_trust"),
-        "Actie": r.action_hint,
+detail_rows = []
+for p in result.pillars:
+    detail_rows.append({
+        "Pijler": p.label,
+        "Score": f"{p.score:.0f}" if pd.notna(p.score) else "–",
+        "Gewicht": f"{p.weight:.0%}",
+        "Band": band_labels.get(p.band, "–") if hasattr(p, "band") else "–",
+        "Toelichting": p.reason or "–",
     })
 
-summary_df = pd.DataFrame(summary_rows)
-summary_df = summary_df.sort_values("Health", ascending=False).reset_index(drop=True)
-
-# Display with color coding
-def color_health(val):
-    if pd.isna(val):
-        return "background-color: #F3F4F6; color: #9CA3AF"
-    if val >= 75:
-        return "background-color: #DCFCE7; color: #166534; font-weight:700"
-    if val >= 60:
-        return "background-color: #FEF9C3; color: #854D0E; font-weight:700"
-    if val >= 45:
-        return "background-color: #FEF3C7; color: #92400E; font-weight:600"
-    return "background-color: #FEE2E2; color: #991B1B; font-weight:700"
-
-def color_pillar(val):
-    if pd.isna(val) or val is None:
-        return "color: #9CA3AF"
-    if val >= 75:
-        return "color: #166534; font-weight:600"
-    if val >= 60:
-        return "color: #854D0E; font-weight:600"
-    if val >= 45:
-        return "color: #92400E"
-    return "color: #991B1B; font-weight:600"
-
-styled = summary_df.style.format({
-    "Health": "{:.0f}",
-    "Traffic": "{:.0f}",
-    "Conversie": "{:.0f}",
-    "Ruimte": "{:.0f}",
-    "Klantwaarde": "{:.0f}",
-    "Data Trust": "{:.0f}",
-}).applymap(color_health, subset=["Health"]).applymap(color_pillar, subset=["Traffic", "Conversie", "Ruimte", "Klantwaarde", "Data Trust"])
-
-st.dataframe(styled, use_container_width=True, height=300)
+detail_df = pd.DataFrame(detail_rows)
+st.dataframe(detail_df, use_container_width=True, hide_index=True)
 
 # ── Trend chart ─────────────────────────────────────────────────────────────
 st.markdown("---")
-st.markdown("### 📈 Health Score Trend (30 dagen)")
+st.markdown("### 📈 Health Score Trend")
 
-# Compute daily health scores for trend
 if len(df) > 0 and "date" in df.columns:
     daily_scores = []
     for date_val, day_df in df.groupby("date"):
@@ -419,7 +470,6 @@ if len(df) > 0 and "date" in df.columns:
         day_agg = day_agg.rename(columns={"count_in": "footfall"})
         day_results = compute_health_batch(day_agg, store_key_col="shop_id", store_format=store_format)
         if day_results:
-            # Average health across stores for this day
             scores = [r.health_score for r in day_results if pd.notna(r.health_score)]
             if scores:
                 daily_scores.append({"date": date_val, "health_avg": np.mean(scores)})
@@ -439,7 +489,6 @@ if len(df) > 0 and "date" in df.columns:
             fillcolor="rgba(118, 33, 129, 0.08)",
         ))
 
-        # Reference lines
         fig_trend.add_hline(y=75, line_dash="dot", line_color="#22C55E",
                            annotation_text="Uitstekend", annotation_position="top right")
         fig_trend.add_hline(y=60, line_dash="dot", line_color="#84CC16",
@@ -466,23 +515,22 @@ else:
 st.markdown("---")
 st.markdown("### 📞 Sales Call Opener")
 
-if best.health_score is not None and not pd.isna(best.health_score):
-    # Identify weakest pillar
-    valid_pillars = [p for p in best.pillars if pd.notna(p.score)]
+if result.health_score is not None and not pd.isna(result.health_score):
+    valid_pillars = [p for p in result.pillars if pd.notna(p.score)]
     if valid_pillars:
         weakest = min(valid_pillars, key=lambda p: p.score)
         strongest = max(valid_pillars, key=lambda p: p.score)
 
         opener_lines = [
-            f"**\"Hoe gezond is je winkel in {best.store_name}?\"**",
+            f"**\"Hoe gezond is je winkel in {result.store_name}?\"**",
             "",
             f"De Store Health Score meet de vitale signalen van een winkel op een schaal van 0-100.",
-            f"Score voor **{best.store_name}**: **{best.health_score:.0f}** — {band_labels.get(best.health_band, '–')}",
+            f"Score voor **{result.store_name}**: **{result.health_score:.0f}** — {band_labels.get(result.health_band, '–')}",
             "",
             f"💪 Sterkste pijler: **{strongest.label}** ({strongest.score:.0f})",
             f"⚠️ Zwakste pijler: **{weakest.label}** ({weakest.score:.0f})",
             "",
-            f"💡 {best.action_hint}",
+            f"💡 {result.action_hint}",
             "",
             "Deze score is berekend op basis van live footfall-, conversie- en omzetdata.",
             "Wil je zien hoe we dit kunnen verbeteren? Ik loop er in 2 minuten doorheen.",
@@ -491,9 +539,9 @@ if best.health_score is not None and not pd.isna(best.health_score):
         opener_lines = [
             f"**\"Hoe gezond is je winkel?\"**",
             "",
-            f"Score voor **{best.store_name}**: **{best.health_score:.0f}** — {band_labels.get(best.health_band, '–')}",
+            f"Score voor **{result.store_name}**: **{result.health_score:.0f}** — {band_labels.get(result.health_band, '–')}",
             "",
-            f"💡 {best.action_hint}",
+            f"💡 {result.action_hint}",
         ]
 else:
     opener_lines = [
@@ -535,7 +583,9 @@ with st.expander("📖 Methodologie — Hoe wordt de Health Score berekend?"):
 
 # ── Debug ───────────────────────────────────────────────────────────────────
 with st.expander("🔧 Debug — ruwe data"):
-    st.write("Stores:", len(results))
+    st.write("Shop ID:", selected_shop_id)
+    st.write("Shop name:", selected_shop_name)
     st.write("Periode:", selected_period.start, "→", selected_period.end)
     st.write("Formaat:", store_format)
+    st.write("Rows ontvangen:", len(df))
     st.dataframe(store_agg, use_container_width=True)
