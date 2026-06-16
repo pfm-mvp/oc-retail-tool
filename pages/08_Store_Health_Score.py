@@ -340,6 +340,50 @@ with st.spinner(f"Data ophalen voor {selected_shop_name}..."):
         store_dim["store_display"].tolist()
     )}
 
+    # ── Extract sq_meter from API response metadata (per shop) ────────────
+    # The API returns shop metadata including sq_meter in data[date_key][shop_id]["data"]
+    # This is NOT included by normalize_vemcount_response, so we extract it separately.
+    api_sqm_map = {}  # shop_id → sqm from API
+    if isinstance(js, dict) and "data" in js:
+        for _bucket_key, shops_dict in js["data"].items():
+            if not isinstance(shops_dict, dict):
+                continue
+            for shop_id_str, shop_node in shops_dict.items():
+                if not isinstance(shop_node, dict):
+                    continue
+                # Extract sq_meter from shop metadata
+                meta = shop_node.get("data", {})
+                if isinstance(meta, dict) and "sq_meter" in meta:
+                    try:
+                        sid = int(shop_id_str)
+                        sq_val = float(meta["sq_meter"])
+                        if sq_val > 0 and sid not in api_sqm_map:
+                            api_sqm_map[sid] = sq_val
+                    except (ValueError, TypeError):
+                        pass
+                # Also check inside dates dict
+                dates = shop_node.get("dates", {})
+                if isinstance(dates, dict):
+                    for _ts, day_node in dates.items():
+                        if isinstance(day_node, dict):
+                            day_meta = day_node.get("data", {})
+                            if isinstance(day_meta, dict) and "sq_meter" in day_meta:
+                                try:
+                                    sid = int(shop_id_str)
+                                    sq_val = float(day_meta["sq_meter"])
+                                    if sq_val > 0 and sid not in api_sqm_map:
+                                        api_sqm_map[sid] = sq_val
+                                except (ValueError, TypeError):
+                                    pass
+
+    # Merge sqm: override > api > None
+    final_sqm_map = {}
+    for sid in all_shop_ids:
+        if sid in sqm_map and pd.notna(sqm_map[sid]) and float(sqm_map[sid]) > 0:
+            final_sqm_map[sid] = float(sqm_map[sid])
+        elif sid in api_sqm_map:
+            final_sqm_map[sid] = api_sqm_map[sid]
+
     df = normalize_vemcount_response(js, shop_name_map, kpi_keys=KPI_KEYS)
 
     if df is None or df.empty:
@@ -376,7 +420,8 @@ store_agg = df.groupby(["shop_id", "shop_name"], as_index=False).agg(agg_cols)
 store_agg = store_agg.rename(columns={"count_in": "footfall"})
 
 # ── Add sqm column ────────────────────────────────────────────────────────
-store_agg["sqm_effective"] = store_agg["shop_id"].map(sqm_map)
+# Priority: regions.csv sqm_override > API sq_meter
+store_agg["sqm_effective"] = store_agg["shop_id"].map(final_sqm_map)
 
 # ── Compute health scores for ALL stores (for benchmarks) ────────────────
 all_results = compute_health_batch(store_agg, store_key_col="shop_id", store_format=store_format)
@@ -616,7 +661,7 @@ if len(df) > 0 and "date" in df.columns:
             )
             day_agg = day_agg.rename(columns={"count_in": "footfall"})
             # Add sqm
-            day_agg["sqm_effective"] = day_agg["shop_id"].map(sqm_map)
+            day_agg["sqm_effective"] = day_agg["shop_id"].map(final_sqm_map)
             # Compute with benchmarks
             day_result = compute_store_health(
                 store_id=selected_shop_id,
@@ -759,6 +804,8 @@ with st.expander("🔧 Debug — ruwe data"):
     st.write("Benchmarks — SPV median:", spv_median)
     st.write("Benchmarks — TPSM median:", tpsm_median)
     st.write("Benchmarks — ATV median:", atv_median)
-    st.write("SQM map:", sqm_map)
+    st.write("SQM map (regions.csv):", sqm_map)
+    st.write("SQM map (API):", api_sqm_map)
+    st.write("SQM map (final, merged):", final_sqm_map)
     st.write("Rows ontvangen:", len(df))
     st.dataframe(store_agg, use_container_width=True)
