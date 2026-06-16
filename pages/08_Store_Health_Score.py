@@ -48,23 +48,37 @@ else:
     FASTAPI_BASE_URL = raw_api_url
 
 # ── Ollama / GLM-5.1 client for AI Health Coach ──────────────────────────────
+# Uses OpenAI-compatible endpoint at https://ollama.com/v1 with OLLAMA_API_KEY secret.
+# Falls back to localhost:11434/v1 for local dev (no API key needed).
+OLLAMA_CLOUD_URL = "https://ollama.com/v1"
+OLLAMA_LOCAL_URL = "http://localhost:11434/v1"
+OLLAMA_MODEL = "glm-5.1:cloud"
+
+
 def _get_ollama_client():
-    """Create an OpenAI-compatible client pointing at the Ollama cloud endpoint.
-    On Streamlit Cloud, use OLLAMA_BASE_URL secret; locally defaults to localhost:11434.
+    """Create an OpenAI-compatible client for Ollama Cloud.
+    Streamlit Cloud: uses OLLAMA_API_KEY secret + https://ollama.com/v1.
+    Local dev: falls back to localhost:11434/v1 (no API key needed).
     """
     if not _OPENAI_INSTALLED:
         return None
     try:
-        base_url = st.secrets.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-        return _OpenAI(base_url=base_url.rstrip("/") + "/v1" if not base_url.rstrip("/").endswith("/v1") else base_url.rstrip("/"), api_key="ollama")
+        api_key = st.secrets.get("OLLAMA_API_KEY", "")
+        if api_key:
+            # Ollama Cloud (production)
+            return _OpenAI(base_url=OLLAMA_CLOUD_URL, api_key=api_key)
+        else:
+            # Local Ollama (dev)
+            return _OpenAI(base_url=OLLAMA_LOCAL_URL, api_key="ollama")
     except Exception:
         return None
 
+
 _OLLAMA_CLIENT = _get_ollama_client()
-OLLAMA_MODEL = "glm-5.1:cloud"
+
 
 def ask_health_coach(system_prompt: str, user_prompt: str, max_tokens: int = 1200) -> str | None:
-    """Call GLM-5.1 via Ollama cloud. Returns the assistant content string or None."""
+    """Call GLM-5.1 via Ollama. Returns the assistant content string or None."""
     if _OLLAMA_CLIENT is None:
         return None
     try:
@@ -86,7 +100,6 @@ def ask_health_coach(system_prompt: str, user_prompt: str, max_tokens: int = 120
         return content.strip() if content and content.strip() else None
     except Exception as e:
         return None
-
 # ── Region mapping ─────────────────────────────────────────────────────────
 @st.cache_data(ttl=600)
 def load_region_mapping(path: str = "data/regions.csv") -> pd.DataFrame:
