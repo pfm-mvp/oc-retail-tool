@@ -1,7 +1,7 @@
 # pages/08_Store_Health_Score.py
 # ------------------------------------------------------------
 # PFM Store Health Score — één score (0-100) die de gezondheid
-# van je winkel samenvat. Sales call opener + actiegericht.
+# van je winkel samenvat. AI Health Coach + actiegericht.
 # ------------------------------------------------------------
 import os, sys
 from pathlib import Path
@@ -13,6 +13,12 @@ import pandas as pd
 import requests
 import streamlit as st
 import plotly.graph_objects as go
+
+try:
+    from openai import OpenAI as _OpenAI
+    _OPENAI_INSTALLED = True
+except ImportError:
+    _OPENAI_INSTALLED = False
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -40,6 +46,46 @@ if raw_api_url.endswith("/get-report"):
 else:
     REPORT_URL = raw_api_url + "/get-report"
     FASTAPI_BASE_URL = raw_api_url
+
+# ── Ollama / GLM-5.1 client for AI Health Coach ──────────────────────────────
+def _get_ollama_client():
+    """Create an OpenAI-compatible client pointing at the Ollama cloud endpoint.
+    On Streamlit Cloud, use OLLAMA_BASE_URL secret; locally defaults to localhost:11434.
+    """
+    if not _OPENAI_INSTALLED:
+        return None
+    try:
+        base_url = st.secrets.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+        return _OpenAI(base_url=base_url.rstrip("/") + "/v1" if not base_url.rstrip("/").endswith("/v1") else base_url.rstrip("/"), api_key="ollama")
+    except Exception:
+        return None
+
+_OLLAMA_CLIENT = _get_ollama_client()
+OLLAMA_MODEL = "glm-5.1:cloud"
+
+def ask_health_coach(system_prompt: str, user_prompt: str, max_tokens: int = 1200) -> str | None:
+    """Call GLM-5.1 via Ollama cloud. Returns the assistant content string or None."""
+    if _OLLAMA_CLIENT is None:
+        return None
+    try:
+        resp = _OLLAMA_CLIENT.chat.completions.create(
+            model=OLLAMA_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=max_tokens,
+            temperature=0.4,
+        )
+        content = resp.choices[0].message.content
+        # GLM-5.1 is a thinking model — content may be empty with reasoning filled
+        if not content or not content.strip():
+            reasoning = getattr(resp.choices[0].message, "reasoning", None) or ""
+            if reasoning.strip():
+                content = reasoning
+        return content.strip() if content and content.strip() else None
+    except Exception as e:
+        return None
 
 # ── Region mapping ─────────────────────────────────────────────────────────
 @st.cache_data(ttl=600)
@@ -720,47 +766,168 @@ if len(df) > 0 and "date" in df.columns:
 else:
     st.info("Geen datumdata beschikbaar voor trend.")
 
-# ── Sales Call Opener ───────────────────────────────────────────────────────
+# ── AI Health Coach ────────────────────────────────────────────────────────
 st.markdown("---")
-st.markdown("### 📞 Sales Call Opener")
+st.markdown("### 🧠 AI Health Coach")
 
 if result.health_score is not None and not pd.isna(result.health_score):
     valid_pillars = [p for p in result.pillars if pd.notna(p.score)]
-    if valid_pillars:
-        weakest = min(valid_pillars, key=lambda p: p.score)
-        strongest = max(valid_pillars, key=lambda p: p.score)
+    pillar_desc = []
+    for p in valid_pillars:
+        pillar_desc.append(f"- {p.label}: {p.score:.0f} — {p.reason or 'zie boven'}")
+    pillar_text = "\n".join(pillar_desc)
+    weakest = min(valid_pillars, key=lambda p: p.score) if valid_pillars else None
+    strongest = max(valid_pillars, key=lambda p: p.score) if valid_pillars else None
 
-        opener_lines = [
-            f"**\"Hoe gezond is je winkel in {result.store_name}?\"**",
-            "",
-            f"De Store Health Score meet de vitale signalen van een winkel op een schaal van 0-100.",
-            f"Score voor **{result.store_name}**: **{result.health_score:.0f}** — {band_labels.get(result.health_band, '–')}",
-            "",
-            f"💪 Sterkste pijler: **{strongest.label}** ({strongest.score:.0f})",
-            f"⚠️ Zwakste pijler: **{weakest.label}** ({weakest.score:.0f})",
-            "",
-            f"💡 {result.action_hint}",
-            "",
-            "Deze score is berekend op basis van live footfall-, conversie- en omzetdata.",
-            "Wil je zien hoe we dit kunnen verbeteren? Ik loop er in 2 minuten doorheen.",
-        ]
+    # ── 1. Priority Actions ─────────────────────────────────────────────────
+    with st.spinner("🧠 Prioriteiten berekenen..."):
+        action_prompt = f"""Je bent een retail performance coach voor PFM Intelligence. Analyseer deze Store Health Score en geef 3 prioritaire acties.
+
+Winkel: {result.store_name}
+Health Score: {result.health_score:.0f} ({band_labels.get(result.health_band, '–')})
+Formaat: {store_format}
+Pijler-scores:
+{pillar_text}
+
+Regels:
+- Geef exact 3 acties, gerangschikt naar geschatte impact (hoogste eerst)
+- Elke actie: korte titel + 1 zin uitleg + concreet getal/doel
+- Schrijf in het Nederlands
+- Gebruik retail-termen (footfall, conversie, ATV, SPV, capture rate, omzet per m²)
+- Wees direct en praktisch — geen intro, geen samenvatting"""
+
+        action_result = ask_health_coach(
+            "Je bent een retail analytics expert die winkelmanagers helpt met data-gedreven acties. Antwoord ALTIJD in het Nederlands, beknopt en praktisch.",
+            action_prompt,
+            max_tokens=800,
+        )
+
+    if action_result:
+        st.markdown("#### 🎯 Prioriteiten")
+        st.markdown(action_result)
     else:
-        opener_lines = [
-            f"**\"Hoe gezond is je winkel?\"**",
-            "",
-            f"Score voor **{result.store_name}**: **{result.health_score:.0f}** — {band_labels.get(result.health_band, '–')}",
-            "",
-            f"💡 {result.action_hint}",
-        ]
-else:
-    opener_lines = [
-        "**\"Hoe gezond is je winkel?\"**",
-        "",
-        "Nog onvoldoende data om een Health Score te berekenen. ",
-        "Meer historische data of een langere periode-selectie kan helpen.",
-    ]
+        # Fallback: rule-based
+        if weakest:
+            st.markdown("#### 🎯 Prioriteit")
+            st.markdown(f"Focus op **{weakest.label}** ({weakest.score:.0f}) — {weakest.reason}")
+        st.caption("*AI coach niet beschikbaar — toon regelgebaseerde hint.*")
 
-st.markdown("\n".join(opener_lines))
+    # ── 2. What-If Scenarios ────────────────────────────────────────────────
+    with st.spinner("🧠 What-if scenario's berekenen..."):
+        # Calculate potential score improvements
+        conv_bump = 2  # pp
+        traffic_bump_pct = 10  # percent more footfall
+
+        # Simulate: what if conversion goes up by 2pp?
+        new_conv = float(row.get("conversion_rate", np.nan))
+        conv_bump_note = ""
+        if pd.notna(new_conv):
+            new_conv_adj = new_conv + conv_bump
+            result_bump_conv = compute_store_health(
+                store_id=selected_shop_id,
+                store_name=selected_shop_name,
+                footfall=row.get("footfall", np.nan),
+                turnover=row.get("turnover", np.nan),
+                conversion_rate=new_conv_adj,
+                spv=row.get("sales_per_visitor", np.nan),
+                sqm=row.get("sqm_effective", np.nan),
+                footfall_region_median=footfall_median,
+                conversion_benchmark=conv_median,
+                spv_benchmark=spv_median,
+                tpsm_benchmark=tpsm_median,
+                atv_benchmark=atv_median,
+                store_format=store_format,
+            )
+            conv_bump_note = f"Conversie +{conv_bump}pp → Health Score {result_bump_conv.health_score:.0f}" if pd.notna(result_bump_conv.health_score) else ""
+        else:
+            result_bump_conv = None
+            conv_bump_note = "(geen conversiedata beschikbaar)"
+
+        # Simulate: what if footfall goes up by 10%?
+        new_footfall = float(row.get("footfall", np.nan))
+        traffic_bump_note = ""
+        if pd.notna(new_footfall) and new_footfall > 0:
+            bumped_footfall = new_footfall * (1 + traffic_bump_pct / 100)
+            result_bump_traffic = compute_store_health(
+                store_id=selected_shop_id,
+                store_name=selected_shop_name,
+                footfall=bumped_footfall,
+                turnover=row.get("turnover", np.nan),
+                conversion_rate=row.get("conversion_rate", np.nan),
+                spv=row.get("sales_per_visitor", np.nan),
+                sqm=row.get("sqm_effective", np.nan),
+                footfall_region_median=footfall_median,
+                conversion_benchmark=conv_median,
+                spv_benchmark=spv_median,
+                tpsm_benchmark=tpsm_median,
+                atv_benchmark=atv_median,
+                store_format=store_format,
+            )
+            traffic_bump_note = f"Footfall +{traffic_bump_pct}% → Health Score {result_bump_traffic.health_score:.0f}" if pd.notna(result_bump_traffic.health_score) else ""
+        else:
+            result_bump_traffic = None
+            traffic_bump_note = "(geen footfalldata beschikbaar)"
+
+        whatif_data = []
+        if conv_bump_note and result_bump_conv:
+            whatif_data.append({"Scenario": f"Conversie +{conv_bump}pp", "Nieuwe Score": f"{result_bump_conv.health_score:.0f}", "Verschil": f"{result_bump_conv.health_score - result.health_score:+.0f}"})
+        if traffic_bump_note and result_bump_traffic:
+            whatif_data.append({"Scenario": f"Footfall +{traffic_bump_pct}%", "Nieuwe Score": f"{result_bump_traffic.health_score:.0f}", "Verschil": f"{result_bump_traffic.health_score - result.health_score:+.0f}"})
+
+        if whatif_data:
+            st.markdown("#### 🔄 What-If Scenario's")
+            whatif_df = pd.DataFrame(whatif_data)
+            st.dataframe(whatif_df, use_container_width=True, hide_index=True)
+            st.caption(f"Huidige Health Score: **{result.health_score:.0f}**")
+        else:
+            st.info("Niet genoeg data voor what-if scenario's.")
+
+    # ── 3. Benchmark Context ────────────────────────────────────────────────
+    if len(benchmarked_results) > 1:
+        with st.spinner("🧠 Benchmark-analyse..."):
+            bench_rows = []
+            for r in sorted(benchmarked_results, key=lambda r: r.health_score if pd.notna(r.health_score) else -1, reverse=True):
+                if pd.notna(r.health_score):
+                    bench_rows.append(f"  {r.store_name}: {r.health_score:.0f}")
+            bench_text = "\n".join(bench_rows[:15])
+
+            all_scores = [r.health_score for r in benchmarked_results if pd.notna(r.health_score)]
+            median_score = np.median(all_scores) if all_scores else result.health_score
+            position = "boven" if result.health_score >= median_score else "onder"
+
+            bench_prompt = f"""Analyseer de positie van {result.store_name} binnen deze retailer.
+
+{result.store_name} score: {result.health_score:.0f} ({band_labels.get(result.health_band, '–')})
+Retailer mediaan: {median_score:.0f}
+{result.store_name} is {position} het mediaan.
+
+Alle winkel-scores:
+{bench_text}
+
+Regels:
+- Identificeer patronen: welke winkels presteren goed/slecht en waarom?
+- Vergelijk {result.store_name} met de top-performer
+- Geef 1 concreet inzicht over wat deze winkel kan leren van de betere performers
+- Schrijf in het Nederlands, max 100 woorden
+- Geen intro, direct ter zake"""
+
+            bench_result = ask_health_coach(
+                "Je bent een retail benchmark analyst. Antwoord ALTIJD in het Nederlands, beknopt en praktisch.",
+                bench_prompt,
+                max_tokens=600,
+            )
+
+        st.markdown("#### 📊 Benchmark Context")
+        if bench_result:
+            st.markdown(bench_result)
+        else:
+            st.markdown(f"{result.store_name} scoort **{result.health_score:.0f}** — {position} het mediaan van **{median_score:.0f}**.")
+            st.caption("*AI benchmark analyse niet beschikbaar.*")
+    else:
+        st.info("Benchmark context beschikbaar vanaf 2 winkels.")
+
+else:
+    st.info("Nog onvoldoende data voor de AI Health Coach. Selecteer een periode met data.")
 
 # ── Methodology ─────────────────────────────────────────────────────────────
 with st.expander("📖 Methodologie — Hoe wordt de Health Score berekend?"):
