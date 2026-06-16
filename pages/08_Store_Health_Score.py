@@ -143,12 +143,6 @@ def fmt_pct(x, d=1):
     except Exception:
         return "–"
 
-def fmt_int(x):
-    try:
-        return f"{int(round(float(x))):,}".replace(",", ".")
-    except Exception:
-        return "–"
-
 # ── KPI keys ────────────────────────────────────────────────────────────────
 KPI_KEYS = [
     "count_in", "count_out", "turnover",
@@ -187,10 +181,15 @@ with st.sidebar:
         st.error(f"Kon winkels niet ophalen: {e}")
         locations_df = pd.DataFrame()
 
+    selected_shop_id = None
+    selected_shop_name = None
+    all_shop_ids = []
+    sqm_map = {}  # shop_id → sqm
+
     if not locations_df.empty:
         locations_df["id"] = pd.to_numeric(locations_df["id"], errors="coerce").astype("Int64")
 
-        # Merge with region mapping for store names / types
+        # Merge with region mapping for store names / types / sqm
         region_map = load_region_mapping()
         if not region_map.empty:
             merged = locations_df.merge(region_map, left_on="id", right_on="shop_id", how="inner")
@@ -198,6 +197,8 @@ with st.sidebar:
             merged = locations_df.copy()
             merged["region"] = "Onbekend"
             merged["shop_id"] = merged["id"]
+            merged["sqm_override"] = np.nan
+            merged["store_type"] = "Unknown"
 
         if "store_label" in merged.columns and merged["store_label"].notna().any():
             merged["store_display"] = merged["store_label"]
@@ -220,8 +221,15 @@ with st.sidebar:
 
         store_dim = merged[["id_int", "store_display", "region", "store_type"]].drop_duplicates()
 
+        # Build sqm_map: prefer sqm_override from regions.csv, else try sq_meter from API if available
+        for _, row in merged.drop_duplicates(subset=["id_int"]).iterrows():
+            sid = int(row["id_int"])
+            # sqm_override from regions.csv
+            sqm_override = row.get("sqm_override")
+            if pd.notna(sqm_override) and float(sqm_override) > 0:
+                sqm_map[sid] = float(sqm_override)
+
         if not store_dim.empty:
-            # Build dropdown labels: "StoreName · region (ID)"
             store_dim["dd_label"] = (
                 store_dim["store_display"].fillna(store_dim["id_int"].astype(str))
                 + " · " + store_dim["region"]
@@ -237,12 +245,26 @@ with st.sidebar:
             selected_shop_id = int(selected_row["id_int"])
             selected_shop_name = selected_row["store_display"]
             selected_region = selected_row["region"]
+
+            # All shop IDs for this client (for benchmark computation)
+            all_shop_ids = store_dim["id_int"].tolist()
+
+            with st.expander("ℹ️ Wat betekent Winkelformaat?"):
+                st.markdown("""
+**⚖️ Standaard** — Evenwichtige weging, geschikt voor de meeste winkels.
+
+**📈 Groeiformaat** — Voor winkels in groeimarkten of expansiefase.
+- Traffic Vitality weegt zwaarder (35%): instroom is cruciaal
+- Space Efficiency weegt lichter (10%): ruimte wordt nog ingericht
+
+**📉 Krimpformaat** — Voor winkels die krimpende markten bedienen.
+- Space Efficiency weegt zwaarder (35%): elke m² moet renderen
+- Traffic Vitality weegt lichter (15%): minder focus op groei, meer op efficiëntie
+""")
         else:
             st.warning("Geen winkels gevonden voor deze retailer.")
-            selected_shop_id = None
     else:
         st.warning("Geen locaties gevonden voor deze retailer.")
-        selected_shop_id = None
 
     st.markdown("---")
 
@@ -291,10 +313,13 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ── Data ophalen ─────────────────────────────────────────────────────────────
+# Fetch data for ALL shops of this retailer (for benchmark)
+# AND compute health for selected shop using cross-store benchmarks
 with st.spinner(f"Data ophalen voor {selected_shop_name}..."):
-    params = [
-        ("data", selected_shop_id),
-    ]
+    # Build params for all shops (needed for benchmark)
+    params = []
+    for sid in all_shop_ids:
+        params.append(("data", sid))
     for k in KPI_KEYS:
         params.append(("data_output", k))
     params += [
@@ -309,12 +334,16 @@ with st.spinner(f"Data ophalen voor {selected_shop_name}..."):
     if friendly_error(js):
         st.stop()
 
-    # Build a name map for this single shop
-    shop_name_map = {selected_shop_id: selected_shop_name}
+    # Name map for all shops
+    shop_name_map = {int(sid): name for sid, name in zip(
+        store_dim["id_int"].tolist(),
+        store_dim["store_display"].tolist()
+    )}
+
     df = normalize_vemcount_response(js, shop_name_map, kpi_keys=KPI_KEYS)
 
     if df is None or df.empty:
-        st.warning("Geen data ontvangen voor deze winkel/periode.")
+        st.warning("Geen data ontvangen voor deze periode/parameters.")
         with st.expander("🔧 Debug"):
             st.write("Params:", params)
             st.write("API response keys:", list(js.keys()) if isinstance(js, dict) else type(js))
@@ -346,15 +375,92 @@ for col in KPI_KEYS:
 store_agg = df.groupby(["shop_id", "shop_name"], as_index=False).agg(agg_cols)
 store_agg = store_agg.rename(columns={"count_in": "footfall"})
 
-# ── Compute health score ──────────────────────────────────────────────────
-results = compute_health_batch(store_agg, store_key_col="shop_id", store_format=store_format)
+# ── Add sqm column ────────────────────────────────────────────────────────
+store_agg["sqm_effective"] = store_agg["shop_id"].map(sqm_map)
 
-if not results:
-    st.warning("Kon geen health score berekenen — onvoldoende data.")
+# ── Compute health scores for ALL stores (for benchmarks) ────────────────
+all_results = compute_health_batch(store_agg, store_key_col="shop_id", store_format=store_format)
+
+if not all_results:
+    st.warning("Kon geen health scores berekenen — onvoldoende data.")
     st.stop()
 
-# Take the result for the selected shop (should be only 1, but handle gracefully)
-result = results[0]
+# ── Compute cross-store benchmarks ──────────────────────────────────────────
+# Use medians across all stores of this retailer as benchmarks
+footfall_median = store_agg["footfall"].median(skipna=True) if "footfall" in store_agg.columns else np.nan
+conv_median = store_agg["conversion_rate"].median(skipna=True) if "conversion_rate" in store_agg.columns else np.nan
+spv_median = store_agg["sales_per_visitor"].median(skipna=True) if "sales_per_visitor" in store_agg.columns else np.nan
+turnover_median = store_agg["turnover"].median(skipna=True) if "turnover" in store_agg.columns else np.nan
+
+# Compute turnover_per_sqm median for benchmark
+if "sqm_effective" in store_agg.columns:
+    tpsm_series = store_agg["turnover"] / store_agg["sqm_effective"].replace(0, np.nan)
+    tpsm_median = tpsm_series.median(skipna=True)
+else:
+    tpsm_median = np.nan
+
+# ATV: sales_per_visitor / (conversion_rate / 100)
+if "conversion_rate" in store_agg.columns and "sales_per_visitor" in store_agg.columns:
+    atv_series = store_agg["sales_per_visitor"] / (store_agg["conversion_rate"] / 100).replace(0, np.nan)
+    atv_median = atv_series.median(skipna=True)
+else:
+    atv_median = np.nan
+
+# ── Find selected store's data ──────────────────────────────────────────────
+selected_row = store_agg[store_agg["shop_id"] == selected_shop_id]
+
+if selected_row.empty:
+    st.warning(f"Geen data gevonden voor {selected_shop_name}.")
+    st.stop()
+
+row = selected_row.iloc[0]
+
+# ── Recompute health score WITH cross-store benchmarks ─────────────────────
+result = compute_store_health(
+    store_id=selected_shop_id,
+    store_name=selected_shop_name,
+    footfall=row.get("footfall", np.nan),
+    turnover=row.get("turnover", np.nan),
+    conversion_rate=row.get("conversion_rate", np.nan),
+    spv=row.get("sales_per_visitor", np.nan),
+    sqm=row.get("sqm_effective", np.nan),
+    footfall_region_median=footfall_median,
+    footfall_ly=row.get("footfall_ly", np.nan),
+    conversion_benchmark=conv_median,
+    spv_benchmark=spv_median,
+    tpsm_benchmark=tpsm_median,
+    atv_benchmark=atv_median,
+    capture_index=row.get("capture_index", np.nan),
+    sensor_uptime_pct=row.get("sensor_uptime", np.nan),
+    data_completeness_pct=row.get("data_completeness", np.nan),
+    store_format=store_format,
+)
+
+# ── Also compute scores for all stores (for overview) with benchmarks ───────
+benchmarked_results = []
+for _, srow in store_agg.iterrows():
+    sid = int(srow["shop_id"])
+    sname = str(srow.get("shop_name", sid))
+    r = compute_store_health(
+        store_id=sid,
+        store_name=sname,
+        footfall=srow.get("footfall", np.nan),
+        turnover=srow.get("turnover", np.nan),
+        conversion_rate=srow.get("conversion_rate", np.nan),
+        spv=srow.get("sales_per_visitor", np.nan),
+        sqm=srow.get("sqm_effective", np.nan),
+        footfall_region_median=footfall_median,
+        footfall_ly=srow.get("footfall_ly", np.nan),
+        conversion_benchmark=conv_median,
+        spv_benchmark=spv_median,
+        tpsm_benchmark=tpsm_median,
+        atv_benchmark=atv_median,
+        capture_index=srow.get("capture_index", np.nan),
+        sensor_uptime_pct=srow.get("sensor_uptime", np.nan),
+        data_completeness_pct=srow.get("data_completeness", np.nan),
+        store_format=store_format,
+    )
+    benchmarked_results.append(r)
 
 # ── Score gauge ────────────────────────────────────────────────────────────
 col_gauge, col_detail = st.columns([1, 2])
@@ -445,69 +551,127 @@ st.markdown("### 📊 Pijler details")
 
 detail_rows = []
 for p in result.pillars:
+    score_display = f"{p.score:.0f}" if pd.notna(p.score) else "–"
+    raw_display = f"{p.value_raw:.1f}" if pd.notna(p.value_raw) else "–"
     detail_rows.append({
         "Pijler": p.label,
-        "Score": f"{p.score:.0f}" if pd.notna(p.score) else "–",
+        "Score": score_display,
         "Gewicht": f"{p.weight:.0%}",
-        "Band": band_labels.get(p.band, "–") if hasattr(p, "band") else "–",
+        "Band": band_labels.get(classify_score(p.score if pd.notna(p.score) else np.nan)[0], "–"),
+        "Ruwe waarde": raw_display,
         "Toelichting": p.reason or "–",
     })
 
 detail_df = pd.DataFrame(detail_rows)
 st.dataframe(detail_df, use_container_width=True, hide_index=True)
 
+# ── All stores overview ─────────────────────────────────────────────────────
+if len(benchmarked_results) > 1:
+    st.markdown("---")
+    st.markdown("### 🏪 Alle winkels — vergelijking")
+
+    overview_rows = []
+    for r in benchmarked_results:
+        pillar_scores = {p.key: (p.score if pd.notna(p.score) else None) for p in r.pillars}
+        overview_rows.append({
+            "Winkel": r.store_name,
+            "Health": r.health_score if pd.notna(r.health_score) else None,
+            "Traffic": pillar_scores.get("traffic_vitality"),
+            "Conversie": pillar_scores.get("conversion_power"),
+            "Ruimte": pillar_scores.get("space_efficiency"),
+            "Klantwaarde": pillar_scores.get("customer_value"),
+            "Data Trust": pillar_scores.get("data_trust"),
+        })
+
+    overview_df = pd.DataFrame(overview_rows)
+    overview_df = overview_df.sort_values("Health", ascending=False, na_position="last").reset_index(drop=True)
+
+    # Format scores
+    format_dict = {"Health": "{:.0f}", "Traffic": "{:.0f}", "Conversie": "{:.0f}",
+                   "Ruimte": "{:.0f}", "Klantwaarde": "{:.0f}", "Data Trust": "{:.0f}"}
+    display_df = overview_df.copy()
+    for col, fmt in format_dict.items():
+        if col in display_df.columns:
+            display_df[col] = display_df[col].apply(lambda x: fmt.format(x) if pd.notna(x) else "–")
+
+    # Highlight selected store
+    display_df[""] = ["▶" if r.store_id == selected_shop_id else "" for r in sorted(benchmarked_results, key=lambda r: r.health_score if pd.notna(r.health_score) else -1, reverse=True)]
+
+    st.dataframe(display_df[["", "Winkel", "Health", "Traffic", "Conversie", "Ruimte", "Klantwaarde", "Data Trust"]], use_container_width=True, hide_index=True)
+
 # ── Trend chart ─────────────────────────────────────────────────────────────
 st.markdown("---")
 st.markdown("### 📈 Health Score Trend")
 
 if len(df) > 0 and "date" in df.columns:
-    daily_scores = []
-    for date_val, day_df in df.groupby("date"):
-        day_agg = day_df.groupby(["shop_id", "shop_name"], as_index=False).agg(
-            {col: "mean" if col in ("conversion_rate", "sales_per_visitor", "sales_per_sqm") else "sum"
-             for col in KPI_KEYS if col in day_df.columns}
-        )
-        day_agg = day_agg.rename(columns={"count_in": "footfall"})
-        day_results = compute_health_batch(day_agg, store_key_col="shop_id", store_format=store_format)
-        if day_results:
-            scores = [r.health_score for r in day_results if pd.notna(r.health_score)]
-            if scores:
-                daily_scores.append({"date": date_val, "health_avg": np.mean(scores)})
+    # Filter for selected shop only
+    shop_df = df[df["shop_id"] == selected_shop_id].copy()
 
-    if daily_scores:
-        trend_df = pd.DataFrame(daily_scores).sort_values("date")
+    if not shop_df.empty:
+        daily_scores = []
+        for date_val, day_df in shop_df.groupby("date"):
+            day_agg = day_df.groupby(["shop_id", "shop_name"], as_index=False).agg(
+                {col: "mean" if col in ("conversion_rate", "sales_per_visitor", "sales_per_sqm") else "sum"
+                 for col in KPI_KEYS if col in day_df.columns}
+            )
+            day_agg = day_agg.rename(columns={"count_in": "footfall"})
+            # Add sqm
+            day_agg["sqm_effective"] = day_agg["shop_id"].map(sqm_map)
+            # Compute with benchmarks
+            day_result = compute_store_health(
+                store_id=selected_shop_id,
+                store_name=selected_shop_name,
+                footfall=day_agg.iloc[0].get("footfall", np.nan) if len(day_agg) > 0 else np.nan,
+                turnover=day_agg.iloc[0].get("turnover", np.nan) if len(day_agg) > 0 else np.nan,
+                conversion_rate=day_agg.iloc[0].get("conversion_rate", np.nan) if len(day_agg) > 0 else np.nan,
+                spv=day_agg.iloc[0].get("sales_per_visitor", np.nan) if len(day_agg) > 0 else np.nan,
+                sqm=day_agg.iloc[0].get("sqm_effective", np.nan) if len(day_agg) > 0 else np.nan,
+                footfall_region_median=footfall_median,
+                conversion_benchmark=conv_median,
+                spv_benchmark=spv_median,
+                tpsm_benchmark=tpsm_median,
+                atv_benchmark=atv_median,
+                store_format=store_format,
+            )
+            if pd.notna(day_result.health_score):
+                daily_scores.append({"date": date_val, "health": day_result.health_score})
 
-        fig_trend = go.Figure()
-        fig_trend.add_trace(go.Scatter(
-            x=trend_df["date"],
-            y=trend_df["health_avg"],
-            mode="lines+markers",
-            name="Health Score",
-            line={"color": PFM_PURPLE, "width": 3},
-            marker={"size": 6, "color": PFM_PURPLE},
-            fill="tozeroy",
-            fillcolor="rgba(118, 33, 129, 0.08)",
-        ))
+        if daily_scores:
+            trend_df = pd.DataFrame(daily_scores).sort_values("date")
 
-        fig_trend.add_hline(y=75, line_dash="dot", line_color="#22C55E",
-                           annotation_text="Uitstekend", annotation_position="top right")
-        fig_trend.add_hline(y=60, line_dash="dot", line_color="#84CC16",
-                           annotation_text="Goed", annotation_position="top right")
-        fig_trend.add_hline(y=45, line_dash="dot", line_color="#F59E0B",
-                           annotation_text="Aandacht", annotation_position="top right")
+            fig_trend = go.Figure()
+            fig_trend.add_trace(go.Scatter(
+                x=trend_df["date"],
+                y=trend_df["health"],
+                mode="lines+markers",
+                name="Health Score",
+                line={"color": PFM_PURPLE, "width": 3},
+                marker={"size": 6, "color": PFM_PURPLE},
+                fill="tozeroy",
+                fillcolor="rgba(118, 33, 129, 0.08)",
+            ))
 
-        fig_trend.update_layout(
-            height=320,
-            margin=dict(l=50, r=20, t=30, b=40),
-            yaxis={"range": [0, 100], "title": "Health Score", "gridcolor": PFM_LINE, "tickfont": {"color": PFM_GRAY}},
-            xaxis={"title": "", "gridcolor": PFM_LINE, "tickfont": {"color": PFM_GRAY}},
-            paper_bgcolor="white",
-            plot_bgcolor="white",
-            showlegend=False,
-        )
-        st.plotly_chart(fig_trend, use_container_width=True)
+            fig_trend.add_hline(y=75, line_dash="dot", line_color="#22C55E",
+                               annotation_text="Uitstekend", annotation_position="top right")
+            fig_trend.add_hline(y=60, line_dash="dot", line_color="#84CC16",
+                               annotation_text="Goed", annotation_position="top right")
+            fig_trend.add_hline(y=45, line_dash="dot", line_color="#F59E0B",
+                               annotation_text="Aandacht", annotation_position="top right")
+
+            fig_trend.update_layout(
+                height=320,
+                margin=dict(l=50, r=20, t=30, b=40),
+                yaxis={"range": [0, 100], "title": "Health Score", "gridcolor": PFM_LINE, "tickfont": {"color": PFM_GRAY}},
+                xaxis={"title": "", "gridcolor": PFM_LINE, "tickfont": {"color": PFM_GRAY}},
+                paper_bgcolor="white",
+                plot_bgcolor="white",
+                showlegend=False,
+            )
+            st.plotly_chart(fig_trend, use_container_width=True)
+        else:
+            st.info("Niet genoeg data voor een trend.")
     else:
-        st.info("Niet genoeg data voor een trend.")
+        st.info("Geen data beschikbaar voor geselecteerde winkel.")
 else:
     st.info("Geen datumdata beschikbaar voor trend.")
 
@@ -568,6 +732,8 @@ with st.expander("📖 Methodologie — Hoe wordt de Health Score berekend?"):
     | 🎯 Customer Value | 15% | Average Transaction Value + SPV diepte |
     | 📡 Data Trust | 15% | Sensor uptime + data compleetheid |
 
+    **Benchmark:** Pijler-scores worden berekend t.o.v. het mediaan van alle winkels binnen dezelfde retailer. Een score van 100 betekent 'op mediaan niveau'.
+
     **Format-specifieke gewichten:**
     - 📈 Groeiformaat: Traffic 35%, Conversie 25%, Ruimte 10%, Klantwaarde 20%, Data 10%
     - 📉 Krimpformaat: Traffic 15%, Conversie 20%, Ruimte 35%, Klantwaarde 15%, Data 15%
@@ -587,5 +753,12 @@ with st.expander("🔧 Debug — ruwe data"):
     st.write("Shop name:", selected_shop_name)
     st.write("Periode:", selected_period.start, "→", selected_period.end)
     st.write("Formaat:", store_format)
+    st.write("Aantal winkels in benchmark:", len(all_shop_ids))
+    st.write("Benchmarks — footfall median:", footfall_median)
+    st.write("Benchmarks — conversion median:", conv_median)
+    st.write("Benchmarks — SPV median:", spv_median)
+    st.write("Benchmarks — TPSM median:", tpsm_median)
+    st.write("Benchmarks — ATV median:", atv_median)
+    st.write("SQM map:", sqm_map)
     st.write("Rows ontvangen:", len(df))
     st.dataframe(store_agg, use_container_width=True)
