@@ -20,9 +20,43 @@ if str(ROOT) not in sys.path:
 from helpers_shop import ID_TO_NAME, SHOP_NAME_MAP_NORM
 from helpers_clients import load_clients
 from helpers_periods import period_catalog
-from utils_pfmx import api_get_report, friendly_error, inject_css
 from helpers_normalize import normalize_vemcount_response
 from stylesheet import inject_css as inject_full_css, get_css, pfm_altair
+
+# ── API URL — same pattern as other pages (05C, 06, 07) ────────────────────
+raw_api_url = st.secrets["API_URL"].rstrip("/")
+if raw_api_url.endswith("/get-report"):
+    REPORT_URL = raw_api_url
+else:
+    REPORT_URL = raw_api_url + "/get-report"
+
+import requests as _requests
+
+def api_get_report_local(params, timeout=60):
+    """POST to /get-report — mirrors utils_pfmx.api_get_report but uses page-level URL."""
+    expanded = []
+    for k, v in params:
+        key = str(k)
+        if key.endswith("[]"):
+            key = key[:-2]
+        if isinstance(v, (list, tuple)):
+            for vi in v:
+                expanded.append((key, str(vi)))
+        else:
+            expanded.append((key, str(v)))
+    try:
+        r = _requests.post(REPORT_URL, params=expanded, timeout=timeout)
+        if r.status_code >= 400:
+            return {"_error": True, "status": r.status_code, "_url": r.request.url, "_method": "POST", "exception": f"HTTP {r.status_code}"}
+        return r.json()
+    except Exception as e:
+        return {"_error": True, "status": 500, "_url": REPORT_URL, "_method": "POST", "exception": str(e)}
+
+def friendly_error(js):
+    if isinstance(js, dict) and js.get("_error"):
+        st.error(f"API call failed — status: {js.get('status')} | url: {js.get('_url')} | {js.get('exception')}")
+        return True
+    return False
 from services.health_score_service import (
     compute_store_health,
     compute_health_batch,
@@ -161,7 +195,7 @@ with st.spinner("Data ophalen..."):
         ("form_date_to", str(selected_period.end)),
     ]
 
-    js = api_get_report(params)
+    js = api_get_report_local(params)
     if friendly_error(js):
         st.stop()
 
