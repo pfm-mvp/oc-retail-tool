@@ -792,21 +792,27 @@ if len(df) > 0 and "date" in df.columns:
                 fillcolor="rgba(118, 33, 129, 0.08)",
             ))
 
+            # Zone fills for clarity
+            fig_trend.add_hrect(y0=75, y1=100, fillcolor="#22C55E", opacity=0.05, line_width=0)
+            fig_trend.add_hrect(y0=60, y1=75, fillcolor="#84CC16", opacity=0.05, line_width=0)
+            fig_trend.add_hrect(y0=45, y1=60, fillcolor="#F59E0B", opacity=0.05, line_width=0)
+
             fig_trend.add_hline(y=75, line_dash="dot", line_color="#22C55E",
-                               annotation_text="Uitstekend", annotation_position="top right")
+                               annotation_text="Uitstekend (75)", annotation_position="top left")
             fig_trend.add_hline(y=60, line_dash="dot", line_color="#84CC16",
-                               annotation_text="Goed", annotation_position="top right")
+                               annotation_text="Goed (60)", annotation_position="top left")
             fig_trend.add_hline(y=45, line_dash="dot", line_color="#F59E0B",
-                               annotation_text="Aandacht", annotation_position="top right")
+                               annotation_text="Aandacht (45)", annotation_position="top left")
 
             fig_trend.update_layout(
-                height=320,
+                height=350,
                 margin=dict(l=50, r=20, t=30, b=40),
                 yaxis={"range": [0, 100], "title": "Health Score", "gridcolor": PFM_LINE, "tickfont": {"color": PFM_GRAY}},
                 xaxis={"title": "", "gridcolor": PFM_LINE, "tickfont": {"color": PFM_GRAY}},
                 paper_bgcolor="white",
                 plot_bgcolor="white",
-                showlegend=False,
+                showlegend=True,
+                legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
             )
             st.plotly_chart(fig_trend, use_container_width=True)
         else:
@@ -822,6 +828,7 @@ st.markdown("### 🧠 AI Health Coach")
 
 if result.health_score is not None and not pd.isna(result.health_score):
     valid_pillars = [p for p in result.pillars if pd.notna(p.score)]
+    # Build compact prompt text (label + score only)
     pillar_desc = []
     for p in valid_pillars:
         pillar_desc.append(f"- {p.label}: {p.score:.0f} — {p.reason or 'zie boven'}")
@@ -831,20 +838,12 @@ if result.health_score is not None and not pd.isna(result.health_score):
 
     # ── 1. Priority Actions ─────────────────────────────────────────────────
     with st.spinner("🧠 Prioriteiten berekenen..."):
-        action_prompt = f"""Je bent een retail performance coach voor PFM Intelligence. Analyseer deze Store Health Score en geef 3 prioritaire acties.
+        # Compact pillar summary for prompt (label + score only, no reasons)
+        pillar_brief = ", ".join(f"{p.label} {p.score:.0f}" for p in valid_pillars)
 
-Winkel: {result.store_name}
-Health Score: {result.health_score:.0f} ({band_labels.get(result.health_band, '–')})
-Formaat: {store_format}
-Pijler-scores:
-{pillar_text}
+        action_prompt = f"""Winkel {result.store_name}: Health Score {result.health_score:.0f} ({band_labels.get(result.health_band, '–')}), formaat {store_format}. Pijlers: {pillar_brief}.
 
-Regels:
-- Geef exact 3 acties, gerangschikt naar geschatte impact (hoogste eerst)
-- Elke actie: korte titel + 1 zin uitleg + concreet getal/doel
-- Schrijf in het Nederlands
-- Gebruik retail-termen (footfall, conversie, ATV, SPV, capture rate, omzet per m²)
-- Wees direct en praktisch — geen intro, geen samenvatting"""
+Geef 3 prioritaire acties (hoogste impact eerst). Per actie: titel + 1 zin + concreet doel. Nederlands, retail-termen, geen intro."""
 
         action_result = ask_health_coach(
             "Je bent een retail analytics expert. Antwoord ALLEEN met de 3 acties in het Nederlands. Geen denken, geen uitleg van je methode, geen intro. Start direct met actie 1.",
