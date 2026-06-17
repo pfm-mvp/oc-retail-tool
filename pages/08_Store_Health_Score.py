@@ -77,6 +77,40 @@ def _get_ollama_client():
 _OLLAMA_CLIENT = _get_ollama_client()
 
 
+def _strip_thinking(text: str) -> str:
+    """Remove GLM-5.1 thinking/reasoning blocks from response content.
+    Handles: <think>...</think>, <thinking>...</thinking>, and plain reasoning paragraphs.
+    """
+    import re
+    # Remove <think>...</think> and <thinking>...</thinking> blocks
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    text = re.sub(r'<thinking>.*?</thinking>', '', text, flags=re.DOTALL)
+    # If content starts with "Analyze" / "Let me" / numbered analysis steps, skip to first Dutch line
+    # (the model sometimes outputs English reasoning before the Dutch answer)
+    lines = text.strip().split('\n')
+    clean_lines = []
+    in_reasoning = True
+    for line in lines:
+        stripped = line.strip()
+        # First line that looks like a Dutch retail action = start of real answer
+        if in_reasoning and stripped:
+            # Detect Dutch retail answer patterns: numbered actions, bold titles, emoji headers
+            if re.match(r'(\d+\.\s|\*\*|🎯|📊|💡|🔥|✅|➡️|Action \d|Formuleer|Title:)', stripped):
+                in_reasoning = False
+            elif re.match(r'^[A-Z][a-z].*:.*', stripped) and len(stripped) < 120:
+                # Title-like lines (Dutch): "Maximale footfall..." etc
+                in_reasoning = False
+            elif not re.match(r'(Analyze|Problem|Wait|Formul|Action|Goal:|Explanation:|Title:|Data|Rule|Store|Role|Task)', stripped):
+                # Not an English reasoning line — probably Dutch answer
+                in_reasoning = False
+        if not in_reasoning:
+            clean_lines.append(line)
+    if clean_lines:
+        return '\n'.join(clean_lines).strip()
+    # Fallback: return original if we can't parse it
+    return text.strip()
+
+
 def ask_health_coach(system_prompt: str, user_prompt: str, max_tokens: int = 1200) -> str | None:
     """Call GLM-5.1 via Ollama. Returns the assistant content string or None."""
     if _OLLAMA_CLIENT is None:
@@ -92,11 +126,14 @@ def ask_health_coach(system_prompt: str, user_prompt: str, max_tokens: int = 120
             temperature=0.4,
         )
         content = resp.choices[0].message.content
-        # GLM-5.1 is a thinking model — content may be empty with reasoning filled
+        # GLM-5.1 is a thinking model — strip reasoning blocks from content
+        if content and content.strip():
+            content = _strip_thinking(content)
+        # If content is empty after stripping, try reasoning field
         if not content or not content.strip():
             reasoning = getattr(resp.choices[0].message, "reasoning", None) or ""
             if reasoning.strip():
-                content = reasoning
+                content = _strip_thinking(reasoning)
         return content.strip() if content and content.strip() else None
     except Exception as e:
         return None
@@ -810,9 +847,9 @@ Regels:
 - Wees direct en praktisch — geen intro, geen samenvatting"""
 
         action_result = ask_health_coach(
-            "Je bent een retail analytics expert die winkelmanagers helpt met data-gedreven acties. Antwoord ALTIJD in het Nederlands, beknopt en praktisch.",
+            "Je bent een retail analytics expert. Antwoord ALLEEN met de 3 acties in het Nederlands. Geen denken, geen uitleg van je methode, geen intro. Start direct met actie 1.",
             action_prompt,
-            max_tokens=800,
+            max_tokens=1500,
         )
 
     if action_result:
@@ -925,9 +962,9 @@ Regels:
 - Geen intro, direct ter zake"""
 
             bench_result = ask_health_coach(
-                "Je bent een retail benchmark analyst. Antwoord ALTIJD in het Nederlands, beknopt en praktisch.",
+                "Je bent een retail benchmark analyst. Antwoord ALLEEN met je analyse in het Nederlands. Geen denken, geen methode-uitleg, direct ter zake.",
                 bench_prompt,
-                max_tokens=600,
+                max_tokens=1000,
             )
 
         st.markdown("#### 📊 Benchmark Context")
