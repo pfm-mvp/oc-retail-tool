@@ -20,13 +20,13 @@ def build_region_store_radar(
     cci_df: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """
-    Bouwt een samengestelde radar-index per winkel in de regio.
+    Builds a composite radar index per store in the region.
 
     Input:
-    - df_period: dagdata in geselecteerde periode (met kolommen:
+    - df_period: daily data in selected period (with columns:
         date, footfall, turnover, sales_per_visitor (optioneel), conversion_rate (optioneel))
-    - region_shops: mapping met per winkel o.a. id, store_display, sqm_effective
-    - store_key_col: kolomnaam in df_period die de winkel-id bevat
+    - region_shops: mapping with per store including id, store_display, sqm_effective
+    - store_key_col: column name in df_period containing the store id
     - capture_weekly: regioweekdata met capture_rate (optioneel, wordt alleen gebruikt als context)
     - cbs_retail_month: CBS retail index (optioneel)
     - cci_df: consumentenvertrouwen-index (optioneel)
@@ -37,9 +37,9 @@ def build_region_store_radar(
     - store_name
     - radar_score (0–200, ~100 = regio-median)
     - headline (tekst)
-    - short_reason (korte toelichting)
+    - short_reason (short explanation)
     - turnover, footfall, sales_per_visitor, turnover_per_sqm
-    - potential_period (extra omzet in periode als winkel op regiomedian per m² zit)
+    - potential_period (extra revenue in period if store reaches regional median per m²)
     - potential_annual (geannualiseerde potentie)
     """
 
@@ -62,7 +62,7 @@ def build_region_store_radar(
         period_days = 1
     annual_factor = 365.0 / period_days
 
-    # --- Aggregatie per winkel over de gekozen periode ---
+    # --- Aggregation per store over selected period ---
     agg_dict: dict[str, str] = {}
     if "footfall" in df.columns:
         agg_dict["footfall"] = "sum"
@@ -104,7 +104,7 @@ def build_region_store_radar(
         store_agg.get("sqm_effective", np.nan), errors="coerce"
     )
 
-    # Omzet per m²
+    # Revenue per m²
     if "turnover" in store_agg.columns:
         store_agg["turnover_per_sqm"] = np.where(
             (store_agg["sqm_effective"] > 0) & (~store_agg["sqm_effective"].isna()),
@@ -132,7 +132,7 @@ def build_region_store_radar(
     store_agg["spv_index"] = _rel_index(store_agg["sales_per_visitor"], med_spv)
     store_agg["sqm_index"] = _rel_index(store_agg["turnover_per_sqm"], med_tps)
 
-    # --- Radar-score: samengestelde index ---
+    # --- Radar score: composite index ---
     # We nemen 4 dimensies:
     # - omzet
     # - footfall
@@ -146,11 +146,11 @@ def build_region_store_radar(
 
     store_agg["radar_score"] = store_agg[idx_cols].mean(axis=1, skipna=True)
 
-    # --- Potentie-berekening (euro) ---
+    # --- Potential calculatiog (euro) ---
     # Kernprincipe:
     # - Als omzet per m² < regiomedian → er is structureel potentieel op m².
-    # - Potentieel (periode) = (median_tps - store_tps) * sqm_effective
-    # - Potentieel (jaar)    = potentieel_periode * annual_factor
+    # - Potential (period) = (median_tps - store_tps) * sqm_effective
+    # - Potential (year) = potential_period * annual_factor
     store_agg["potential_period"] = 0.0
 
     mask_pot = (
@@ -168,7 +168,7 @@ def build_region_store_radar(
 
     store_agg["potential_annual"] = store_agg["potential_period"] * annual_factor
 
-    # --- Status & toelichting ---
+    # --- Status & explanation ---
     # Kleurcode op radar_score en potentieel
     icons = []
     headlines = []
@@ -200,47 +200,47 @@ def build_region_store_radar(
         if np.isnan(score):
             headline = "Onvoldoende data"
         elif score < 90:
-            headline = "Presteert onder verwachting"
+            headline = "Performs below expectations"
         elif score < 110:
             headline = "Heeft aandacht nodig"
         else:
             headline = "Gaat goed"
 
-        # Korte toelichting
+        # Short explanation
         parts = []
 
         # Omzet / m² / SPV
         if not np.isnan(t_idx):
             if t_idx < 90:
-                parts.append(f"Omzet ligt ~{round(100 - t_idx):d}% onder regiomedian")
+                parts.append(f"Revenue is ~{round(100 - t_idx):d}% below region median")
             elif t_idx > 110:
-                parts.append(f"Omzet ligt ~{round(t_idx - 100):d}% boven regiomedian")
+                parts.append(f"Revenue is ~{round(t_idx - 100):d}% above region median")
 
         if not np.isnan(sqm_idx):
             if sqm_idx < 90:
-                parts.append(f"Omzet per m² ~{round(100 - sqm_idx):d}% lager dan regiomedian")
+                parts.append(f"Revenue per m² ~{round(100 - sqm_idx):d}% lower than region median")
             elif sqm_idx > 110:
-                parts.append(f"Omzet per m² ~{round(sqm_idx - 100):d}% hoger dan regiomedian")
+                parts.append(f"Revenue per m² ~{round(sqm_idx - 100):d}% higher than region median")
 
         if not np.isnan(spv_idx):
             if spv_idx < 90:
-                parts.append(f"Besteding per bezoeker ~{round(100 - spv_idx):d}% lager dan regiomedian")
+                parts.append(f"Spend per visitor ~{round(100 - spv_idx):d}% lower than region median")
             elif spv_idx > 110:
-                parts.append(f"Besteding per bezoeker ~{round(spv_idx - 100):d}% hoger dan regiomedian")
+                parts.append(f"Spend per visitor ~{round(spv_idx - 100):d}% higher than region median")
 
         # Potentie
         if pot_annual > 0:
             # we geven alleen grove orde (duizenden afronden)
             pot_k = int(round(pot_annual / 1000.0) * 1000)
             if pot_k > 0:
-                parts.append(f"Ruimte voor ~€{pot_k:,.0f} extra omzet per jaar op basis van m²-benchmark".replace(",", "."))
+                parts.append(f"Room for ~€{pot_k:,.0f} extra revenue per year based on m² benchmark".replace(",", "."))
 
         # Capture-context
         if avg_capture is not None and not np.isnan(avg_capture):
-            parts.append(f"Regio capture rate rond ~{avg_capture:.1f}% (straat → winkel)")
+            parts.append(f"Region capture rate around ~{avg_capture:.1f}% (street → store)")
 
         if not parts:
-            short_reason = "Presteert ongeveer op regiogemiddelde."
+            short_reason = "Performs approximately at regional average."
         else:
             # maak het compact, maximaal 2–3 stukjes
             short_reason = "; ".join(parts[:3])

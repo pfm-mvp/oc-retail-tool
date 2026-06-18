@@ -15,7 +15,7 @@ DEFAULT_CSV = DATA_DIR / "pathzz_sample_weekly.csv"
 
 
 def _load_pathzz_weekly(csv_path: Optional[str] = None) -> pd.DataFrame:
-    """Leest de Pathzz weekly CSV en geeft een DataFrame met week_start & visits."""
+    """Reads the Pathzz weekly CSV and returns a DataFrame with week_start & visits."""
     path = Path(csv_path) if csv_path else DEFAULT_CSV
     if not path.exists():
         return pd.DataFrame()
@@ -57,9 +57,9 @@ def fetch_monthly_street_traffic(
     csv_path: Optional[str] = None,
 ) -> pd.DataFrame:
     """
-    Simpele wrapper voor de Copilot:
-    - Negeert lat/lon/radius (we gebruiken 1 vaste CSV voor de pilot)
-    - Filtert de Pathzz-weken op de opgegeven periode
+    Simple wrapper for the Copilot:
+    - Ignores lat/lon/radius (we use 1 fixed CSV for de pilot)
+    - Filters Pathzz weeks on the specified period
     - Aggregateert naar maandniveau → kolommen: ['month', 'street_footfall']
     """
     df = _load_pathzz_weekly(csv_path)

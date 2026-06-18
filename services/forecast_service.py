@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-# Pro-model support (LightGBM). Als dit niet geïnstalleerd is,
+# Pro-model support (LightGBM). If not installed,
 # valt de pro-forecast automatisch terug op de simpele variant.
 try:
     import lightgbm as lgb  # type: ignore
@@ -40,10 +40,10 @@ def build_simple_footfall_turnover_forecast(
     min_history_days: int = 30,
 ) -> dict:
     """
-    Simpele day-of-week forecast voor footfall & omzet.
+    Simple day-of-week forecast for footfall & revenue.
 
-    Verwacht:
-    - df_all_raw met minimaal kolommen: 'date', 'footfall'
+    Expects:
+    - df_all_raw with minimaal kolommen: 'date', 'footfall'
     - optioneel: 'turnover'
     - 'sales_per_visitor' wordt berekend als die nog niet bestaat
 
@@ -109,7 +109,7 @@ def build_simple_footfall_turnover_forecast(
     global_spv = df["sales_per_visitor"].mean()
     fc["spv_mean"] = fc["spv_mean"].fillna(global_spv)
 
-    # Footfall & omzet forecast
+    # Footfall & revenue forecast
     fc["footfall_forecast"] = fc["footfall_mean"].clip(lower=0)
     fc["turnover_forecast"] = fc["footfall_forecast"] * fc["spv_mean"]
 
@@ -123,7 +123,7 @@ def build_simple_footfall_turnover_forecast(
     fut_foot = fc["footfall_forecast"].sum()
     fut_turn = fc["turnover_forecast"].sum()
 
-    # Historiek voor grafiek: laatste 28 dagen
+    # History for chart: last 28 days
     hist_recent = df[df["date"] >= (last_date - pd.Timedelta(days=27))].copy()
 
     return {
@@ -154,12 +154,12 @@ def build_pro_footfall_turnover_forecast(
     event_flags_future: pd.DataFrame | None = None,
 ) -> dict:
     """
-    Pro-forecast met:
-    - LightGBM (als beschikbaar)
+    Pro-forecast with:
+    - LightGBM (if available)
     - Features: dow, maand, dag, weekend, lags & rolling means
-    - Optioneel: event-flags (bijv. feestdagen, vakanties, sale-periodes)
+    - Optional: event flags (e.g. holidays, vacations, sale periods)
 
-    Als LightGBM niet beschikbaar is of er te weinig historie is:
+    If LightGBM is unavailable or there is too little history:
     -> automatische fallback naar build_simple_footfall_turnover_forecast(...),
        met 'used_simple_fallback' = True.
 
@@ -318,7 +318,7 @@ def build_pro_footfall_turnover_forecast(
         # index in "uitgebreide" tijdreeks
         new_idx = len(foot_hist)  # volgende positie
 
-        # kalenderfeatures
+        # calendar features
         dow = target_date.weekday()
         month = target_date.month
         day_of_month = target_date.day
@@ -335,7 +335,7 @@ def build_pro_footfall_turnover_forecast(
         lag_7 = _lag_or_last(7)
         lag_14 = _lag_or_last(14)
 
-        # rolling means over de laatste 7 / 28 bekende punten (incl. voorspelde)
+        # rolling means over the last 7 / 28 known points (incl. predicted)
         if len(foot_hist) > 0:
             roll_7 = np.mean(foot_hist[-7:]) if len(foot_hist) >= 3 else np.mean(foot_hist)
             roll_28 = np.mean(foot_hist[-28:]) if len(foot_hist) >= 7 else np.mean(foot_hist)
@@ -390,7 +390,7 @@ def build_pro_footfall_turnover_forecast(
     fut_foot = fc["footfall_forecast"].sum()
     fut_turn = fc["turnover_forecast"].sum()
 
-    # Historiek voor grafiek: laatste 28 dagen
+    # History for chart: last 28 days
     hist_recent = df[df["date"] >= (last_date - pd.Timedelta(days=27))].copy()
 
     return {

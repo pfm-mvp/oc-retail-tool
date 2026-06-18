@@ -748,7 +748,7 @@ def main():
         if use_llm and not _has_secret("OPENROUTER_API_KEY"):
             st.warning("OPENROUTER_API_KEY missing in secrets → deterministic cards only.")
 
-        st.caption("Tip: rewrite gebruikt 1 call (alle cards in één keer).")
+        st.caption("Tip: rewrite uses 1 call (all cards at once).")
 
     # ---- API URL setup ----
     raw_api_url = st.secrets["API_URL"].rstrip("/")

@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-# Pro-model support (LightGBM). Als dit niet geïnstalleerd is,
+# Pro-model support (LightGBM). If not installed,
 # valt de pro-forecast automatisch terug op de simpele variant.
 try:
     import lightgbm as lgb  # type: ignore
@@ -17,7 +17,7 @@ try:
 except Exception:
     HAS_LIGHTGBM = False
 
-# Retail-kalenderfeatures (feestdagen, Black Friday, kerstperiode, zomer, etc.)
+# Retail calendar features (holidays, Black Friday, Christmas period, summer, etc.)
 from services.event_service import add_retail_calendar_features
 
 
@@ -50,7 +50,7 @@ def _fetch_weather_daily_visualcrossing(
     api_key: str,
 ) -> pd.DataFrame:
     """
-    Haalt dagelijkse weerdata op via Visual Crossing (history/forecast in één endpoint).
+    Fetches daily weather data via Visual Crossing (history/forecast in one endpoint).
 
     Return DataFrame: kolommen ['date', 'temp', 'precip', 'windspeed']
     """
@@ -92,7 +92,7 @@ def _prepare_weather_for_training_and_forecast(
 ) -> tuple[pd.DataFrame, Optional[pd.DataFrame]]:
     """
     - Voegt weerdata toe aan de historische df (voor training).
-    - Haalt ook weerdata op voor de forecast-periode (voor features in de toekomst).
+    - Also fetches weather data for the forecast period (for future features).
 
     Return: (df_with_weather, future_weather_df or None)
     """
@@ -109,7 +109,7 @@ def _prepare_weather_for_training_and_forecast(
         country = weather_cfg.get("country", "Netherlands")
         location_str = f"{city},{country}"
     else:
-        # Onbekende mode → geen weer
+        # Unknown mode → no weather
         return df, None
 
     df = df.copy()
@@ -137,7 +137,7 @@ def _prepare_weather_for_training_and_forecast(
         # Als weer faalt: geen crash, gewoon zonder weer verder
         return df, None
 
-    # Weer voor forecast-periode
+    # Weather for forecast period
     last_date = df["date"].max().date()
     fut_start = last_date + dt.timedelta(days=1)
     fut_end = last_date + dt.timedelta(days=horizon)
@@ -167,10 +167,10 @@ def build_simple_footfall_turnover_forecast(
     min_history_days: int = 30,
 ) -> dict:
     """
-    Simpele day-of-week forecast voor footfall & omzet.
+    Simple day-of-week forecast for footfall & revenue.
 
-    Verwacht:
-    - df_all_raw met minimaal kolommen: 'date', 'footfall'
+    Expects:
+    - df_all_raw with minimaal kolommen: 'date', 'footfall'
     - optioneel: 'turnover'
     - 'sales_per_visitor' wordt berekend als die nog niet bestaat
 
@@ -236,7 +236,7 @@ def build_simple_footfall_turnover_forecast(
     global_spv = df["sales_per_visitor"].mean()
     fc["spv_mean"] = fc["spv_mean"].fillna(global_spv)
 
-    # Footfall & omzet forecast
+    # Footfall & revenue forecast
     fc["footfall_forecast"] = fc["footfall_mean"].clip(lower=0)
     fc["turnover_forecast"] = fc["footfall_forecast"] * fc["spv_mean"]
 
@@ -250,7 +250,7 @@ def build_simple_footfall_turnover_forecast(
     fut_foot = fc["footfall_forecast"].sum()
     fut_turn = fc["turnover_forecast"].sum()
 
-    # Historiek voor grafiek: laatste 28 dagen
+    # History for chart: last 28 days
     hist_recent = df[df["date"] >= (last_date - pd.Timedelta(days=27))].copy()
 
     return {
@@ -279,13 +279,13 @@ def build_pro_footfall_turnover_forecast(
     use_weather: bool = False,
 ) -> dict:
     """
-    Pro-forecast met:
-    - LightGBM (als beschikbaar)
-    - Retail-kalenderfeatures (dow, maand, Q4, kerstperiode, Black Friday, feestdagen, zomer)
+    Pro-forecast with:
+    - LightGBM (if available)
+    - Retail calendar features (dow, month, Q4, Christmas period, Black Friday, holidays, summer)
     - Lags & rolling means
     - Optioneel: weerfeatures (temp, precip, windspeed) via Visual Crossing
 
-    Als LightGBM niet beschikbaar is of er te weinig historie is:
+    If LightGBM is unavailable or there is too little history:
     -> automatische fallback naar build_simple_footfall_turnover_forecast(...),
        met 'used_simple_fallback' = True.
     """
@@ -343,7 +343,7 @@ def build_pro_footfall_turnover_forecast(
     # Sorteren op datum
     df = df.sort_values("date").reset_index(drop=True)
 
-    # Retail-kalenderfeatures (dow, maand, Q4, kerstperiode, Black Friday, zomer, etc.)
+    # Retail calendar features (dow, month, Q4, Christmas period, Black Friday, summer, etc.)
     df = add_retail_calendar_features(df, date_col="date")
 
     # Lags & rolling stats op footfall
@@ -385,7 +385,7 @@ def build_pro_footfall_turnover_forecast(
         weather_feature_cols = ["temp", "precip", "windspeed"]
         feature_cols += weather_feature_cols
     else:
-        # Als weerdata niet beschikbaar is → niet gebruiken in features
+        # If weather data unavailable → don't use in features
         weather_future_df = None
 
     # Eerste rijen met NaN in lags/rollings droppen
@@ -431,7 +431,7 @@ def build_pro_footfall_turnover_forecast(
     last_date = df["date"].max()
     global_spv = df["sales_per_visitor"].mean()
 
-    # Helper om kalenderfeatures voor een target-dag te halen
+    # Helper to get calendar features for a target day
     def _calendar_features_for_date(ts: pd.Timestamp) -> Dict[str, Any]:
         tmp = pd.DataFrame({"date": [ts]})
         tmp = add_retail_calendar_features(tmp, date_col="date")
@@ -472,7 +472,7 @@ def build_pro_footfall_turnover_forecast(
         # Kalenderfeatures
         cal = _calendar_features_for_date(target_date)
 
-        # Lags uit foot_hist (historisch + eerder voorspelde waarden)
+        # Lags from foot_hist (historical + earlier predicted values)
         def _lag_or_last(idx_offset: int) -> float:
             idx = new_idx - idx_offset
             if 0 <= idx < len(foot_hist):
@@ -483,7 +483,7 @@ def build_pro_footfall_turnover_forecast(
         lag_7 = _lag_or_last(7)
         lag_14 = _lag_or_last(14)
 
-        # rolling means over de laatste 7 / 28 bekende punten (incl. voorspelde)
+        # rolling means over the last 7 / 28 known points (incl. predicted)
         if len(foot_hist) > 0:
             roll_7 = float(np.mean(foot_hist[-7:])) if len(foot_hist) >= 3 else float(
                 np.mean(foot_hist)
@@ -551,7 +551,7 @@ def build_pro_footfall_turnover_forecast(
     fut_foot = fc["footfall_forecast"].sum()
     fut_turn = fc["turnover_forecast"].sum()
 
-    # Historiek voor grafiek: laatste 28 dagen
+    # History for chart: last 28 days
     hist_recent = df[df["date"] >= (last_date - pd.Timedelta(days=27))].copy()
 
     return {

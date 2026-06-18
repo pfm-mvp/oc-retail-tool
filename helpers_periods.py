@@ -36,5 +36,5 @@ def period_catalog(today: date) -> dict[str, PeriodDef]:
         "Q3 2025": PeriodDef(*quarter_range(2025, 3), 2025),
         "Q4 2025": PeriodDef(*quarter_range(2025, 4), 2025),
 
-        "Laatste 26 weken": PeriodDef(today - timedelta(weeks=26), today, today.year),
+        "Last 26 weeks": PeriodDef(today - timedelta(weeks=26), today, today.year),
     }

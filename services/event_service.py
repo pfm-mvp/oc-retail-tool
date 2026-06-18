@@ -11,7 +11,7 @@ DateInput = Union[pd.Series, pd.DatetimeIndex, Iterable]
 
 def _to_date_series(dates: DateInput) -> pd.Series:
     """
-    Converteer willekeurige input (list, Series, DatetimeIndex, ...) naar
+    Convert arbitrary input (list, Series, DatetimeIndex, ...) naar
     een nette pandas Series met genormaliseerde datums (zonder tijd).
     """
     # Alles eerst naar een list, dan naar Series
@@ -38,7 +38,7 @@ def _to_date_series(dates: DateInput) -> pd.Series:
 
 def _black_friday_for_year(year: int) -> pd.Timestamp:
     """
-    Black Friday = laatste vrijdag van november.
+    Black Friday = last Friday of November.
     """
     last_nov = pd.Timestamp(year=year, month=11, day=30)
     # weekday(): maandag=0,... vrijdag=4
@@ -59,7 +59,7 @@ def build_event_flags_for_dates(
     country: str = "NL",
 ) -> pd.DataFrame:
     """
-    Bouw een eenvoudige event-feature set voor een reeks datums.
+    Build a simple event feature set voor een reeks datums.
 
     Output DataFrame met kolommen:
     - date

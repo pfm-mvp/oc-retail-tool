@@ -1,7 +1,7 @@
 # pages/08_Store_Health_Score.py
 # ------------------------------------------------------------
-# PFM Store Health Score — één score (0-100) die de gezondheid
-# van je winkel samenvat. AI Health Coach + actiegericht.
+# PFM Store Health Score — one score (0-100) that summarizes your
+# store's health. AI Health Coach + action-oriented.
 # ------------------------------------------------------------
 import os, sys
 from pathlib import Path
@@ -248,17 +248,17 @@ KPI_KEYS = [
 
 # ── Score bands ─────────────────────────────────────────────────────────────
 band_labels = {
-    "excellent": "🟢 Uitstekend",
-    "good": "🟢 Goed",
-    "attention": "🟠 Aandacht nodig",
-    "critical": "🔴 Kritiek",
-    "unknown": "⚪ Onbekend",
+    "excellent": "🟢 Excellent",
+    "good": "🟢 Good",
+    "attention": "🟠 Needs Attention",
+    "critical": "🔴 Critical",
+    "unknown": "⚪ Unknown",
 }
 
 # ── Sidebar ─────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 🩺 Store Health Score")
-    st.caption("Één score. Vijf pijlers. Direct actiegericht.")
+    st.caption("One score. Five pillars. Action-oriented.")
 
     # ── 1. Client selectie ───────────────────────────────────────────────────
     clients = load_clients()
@@ -274,7 +274,7 @@ with st.sidebar:
     try:
         locations_df = get_locations_by_company(selected_client_id)
     except Exception as e:
-        st.error(f"Kon winkels niet ophalen: {e}")
+        st.error(f"Could not fetch stores: {e}")
         locations_df = pd.DataFrame()
 
     selected_shop_id = None
@@ -291,7 +291,7 @@ with st.sidebar:
             merged = locations_df.merge(region_map, left_on="id", right_on="shop_id", how="inner")
         else:
             merged = locations_df.copy()
-            merged["region"] = "Onbekend"
+            merged["region"] = "Unknown"
             merged["shop_id"] = merged["id"]
             merged["sqm_override"] = np.nan
             merged["store_type"] = "Unknown"
@@ -333,7 +333,7 @@ with st.sidebar:
             )
 
             selected_shop_label = st.selectbox(
-                "Winkel",
+                "Store",
                 options=store_dim["dd_label"].tolist(),
                 index=0,
             )
@@ -345,22 +345,22 @@ with st.sidebar:
             # All shop IDs for this client (for benchmark computation)
             all_shop_ids = store_dim["id_int"].tolist()
 
-            with st.expander("ℹ️ Wat betekent Winkelformaat?"):
+            with st.expander("ℹ️ What does Store Format mean?"):
                 st.markdown("""
-**⚖️ Standaard** — Evenwichtige weging, geschikt voor de meeste winkels.
+**⚖️ Standard** — Balanced weights, suitable for most stores.
 
-**📈 Groeiformaat** — Voor winkels in groeimarkten of expansiefase.
-- Traffic Vitality weegt zwaarder (35%): instroom is cruciaal
-- Space Efficiency weegt lichter (10%): ruimte wordt nog ingericht
+**📈 Growth** — For stores in growing markets or expansion phase.
+- Traffic Vitality weighs more (35%): footfall is crucial
+- Space Efficiency weighs less (10%): space is still being set up
 
-**📉 Krimpformaat** — Voor winkels die krimpende markten bedienen.
-- Space Efficiency weegt zwaarder (35%): elke m² moet renderen
-- Traffic Vitality weegt lichter (15%): minder focus op groei, meer op efficiëntie
+**📉 Shrink** — For stores serving shrinking markets.
+- Space Efficiency weighs more (35%): every m² must perform
+- Traffic Vitality weighs less (15%): less focus on growth, more on efficiency
 """)
         else:
-            st.warning("Geen winkels gevonden voor deze retailer.")
+            st.warning("No stores found for this retailer.")
     else:
-        st.warning("Geen locaties gevonden voor deze retailer.")
+        st.warning("No locations found for this retailer.")
 
     st.markdown("---")
 
@@ -368,34 +368,34 @@ with st.sidebar:
     today = date.today()
     periods = period_catalog(today)
     period_labels = list(periods.keys())
-    selected_period_label = st.selectbox("Periode", period_labels, index=len(period_labels) - 1)
+    selected_period_label = st.selectbox("Period", period_labels, index=len(period_labels) - 1)
     selected_period = periods[selected_period_label]
 
     # ── 4. Formaat ──────────────────────────────────────────────────────────
     store_format = st.radio(
-        "Winkel formaat",
+        "Store format",
         options=["default", "growth", "shrink"],
-        format_func=lambda x: {"default": "⚖️ Standaard", "growth": "📈 Groeiformaat", "shrink": "📉 Krimpformaat"}[x],
+        format_func=lambda x: {"default": "⚖️ Standard", "growth": "📈 Growth", "shrink": "📉 Shrink"}[x],
         index=0,
         horizontal=True,
     )
 
     st.markdown("---")
-    st.markdown("**Pijler gewichten**")
+    st.markdown("**Pillar weights**")
     weights = get_weights(store_format)
     for key, w in weights.items():
         labels = {
             "traffic_vitality": "🚶 Traffic",
-            "conversion_power": "💰 Conversie",
-            "space_efficiency": "📐 Ruimte",
-            "customer_value": "🎯 Klantwaarde",
+            "conversion_power": "💰 Conversion",
+            "space_efficiency": "📐 Space",
+            "customer_value": "🎯 Cust. Value",
             "data_trust": "📡 Data Trust",
         }
         st.caption(f"{labels[key]}: {w:.0%}")
 
 # ── Guard: need shop ─────────────────────────────────────────────────────────
 if selected_shop_id is None:
-    st.info("Selecteer een retailer en winkel in de sidebar.")
+    st.info("Select a retailer and store in the sidebar.")
     st.stop()
 
 # ── Header ──────────────────────────────────────────────────────────────────
@@ -403,15 +403,15 @@ st.markdown(f"""
 <div class="pfm-header pfm-header--fixed">
   <div>
     <div class="pfm-title">🩺 Store Health Score</div>
-    <div class="pfm-sub">Hoe gezond is je winkel? — Één score, vijf pijlers, direct actie</div>
+    <div class="pfm-sub">How healthy is your store? — One score, five pillars, immediate action</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-# ── Data ophalen ─────────────────────────────────────────────────────────────
+# ── Data fetching ─────────────────────────────────────────────────────────────
 # Fetch data for ALL shops of this retailer (for benchmark)
 # AND compute health for selected shop using cross-store benchmarks
-with st.spinner(f"Data ophalen voor {selected_shop_name}..."):
+with st.spinner(f"Fetching data for {selected_shop_name}..."):
     # Build params for all shops (needed for benchmark)
     params = []
     for sid in all_shop_ids:
@@ -483,7 +483,7 @@ with st.spinner(f"Data ophalen voor {selected_shop_name}..."):
     df = normalize_vemcount_response(js, shop_name_map, kpi_keys=KPI_KEYS)
 
     if df is None or df.empty:
-        st.warning("Geen data ontvangen voor deze periode/parameters.")
+        st.warning("No data received for this period/parameters.")
         with st.expander("🔧 Debug"):
             st.write("Params:", params)
             st.write("API response keys:", list(js.keys()) if isinstance(js, dict) else type(js))
@@ -500,7 +500,7 @@ if "date" not in df.columns:
 df = df[pd.notna(df.get("shop_id"))]
 
 if df.empty:
-    st.warning("Geen geldige data na filtering.")
+    st.warning("No valid data after filtering.")
     st.stop()
 
 # ── Aggregate per store ────────────────────────────────────────────────────
@@ -523,7 +523,7 @@ store_agg["sqm_effective"] = store_agg["shop_id"].map(final_sqm_map)
 all_results = compute_health_batch(store_agg, store_key_col="shop_id", store_format=store_format)
 
 if not all_results:
-    st.warning("Kon geen health scores berekenen — onvoldoende data.")
+    st.warning("Could not compute health scores — insufficient data.")
     st.stop()
 
 # ── Compute cross-store benchmarks ──────────────────────────────────────────
@@ -551,7 +551,7 @@ else:
 selected_row = store_agg[store_agg["shop_id"] == selected_shop_id]
 
 if selected_row.empty:
-    st.warning(f"Geen data gevonden voor {selected_shop_name}.")
+    st.warning(f"No data found for {selected_shop_name}.")
     st.stop()
 
 row = selected_row.iloc[0]
@@ -646,7 +646,7 @@ with col_gauge:
 
 with col_detail:
     # ── Pillar bars ────────────────────────────────────────────────────────
-    st.markdown("#### Pijler Scores")
+    st.markdown("#### Pillar Scores")
 
     fig_pillars = go.Figure()
     for p in result.pillars:
@@ -661,7 +661,7 @@ with col_detail:
             text=[f"  {score_val:.0f}" if pd.notna(p.score) else "  –"],
             textposition="inside",
             textfont={"color": "white", "size": 14, "family": "Inter"},
-            hovertext=[f"{p.reason} (gewicht: {p.weight:.0%})"],
+            hovertext=[f"{p.reason} (weight: {p.weight:.0%})"],
             hoverinfo="text",
             showlegend=False,
         ))
@@ -681,26 +681,26 @@ with col_detail:
     if result.action_hint:
         st.markdown(f"""
         <div class="callout">
-          <div class="callout-title">💡 Actie</div>
+          <div class="callout-title">💡 Action</div>
           <div class="callout-sub">{result.action_hint}</div>
         </div>
         """, unsafe_allow_html=True)
 
 # ── Pillar detail table ─────────────────────────────────────────────────────
 st.markdown("---")
-st.markdown("### 📊 Pijler details")
+st.markdown("### 📊 Pillar details")
 
 detail_rows = []
 for p in result.pillars:
     score_display = f"{p.score:.0f}" if pd.notna(p.score) else "–"
     raw_display = f"{p.value_raw:.1f}" if pd.notna(p.value_raw) else "–"
     detail_rows.append({
-        "Pijler": p.label,
+        "Pillar": p.label,
         "Score": score_display,
-        "Gewicht": f"{p.weight:.0%}",
+        "Weight": f"{p.weight:.0%}",
         "Band": band_labels.get(classify_score(p.score if pd.notna(p.score) else np.nan)[0], "–"),
-        "Ruwe waarde": raw_display,
-        "Toelichting": p.reason or "–",
+        "Raw value": raw_display,
+        "Explanation": p.reason or "–",
     })
 
 detail_df = pd.DataFrame(detail_rows)
@@ -709,18 +709,18 @@ st.dataframe(detail_df, use_container_width=True, hide_index=True)
 # ── All stores overview ─────────────────────────────────────────────────────
 if len(benchmarked_results) > 1:
     st.markdown("---")
-    st.markdown("### 🏪 Alle winkels — vergelijking")
+    st.markdown("### 🏪 All stores — comparison")
 
     overview_rows = []
     for r in benchmarked_results:
         pillar_scores = {p.key: (p.score if pd.notna(p.score) else None) for p in r.pillars}
         overview_rows.append({
-            "Winkel": r.store_name,
+            "Store": r.store_name,
             "Health": r.health_score if pd.notna(r.health_score) else None,
             "Traffic": pillar_scores.get("traffic_vitality"),
-            "Conversie": pillar_scores.get("conversion_power"),
-            "Ruimte": pillar_scores.get("space_efficiency"),
-            "Klantwaarde": pillar_scores.get("customer_value"),
+            "Conversion": pillar_scores.get("conversion_power"),
+            "Space": pillar_scores.get("space_efficiency"),
+            "Cust. Value": pillar_scores.get("customer_value"),
             "Data Trust": pillar_scores.get("data_trust"),
         })
 
@@ -728,8 +728,8 @@ if len(benchmarked_results) > 1:
     overview_df = overview_df.sort_values("Health", ascending=False, na_position="last").reset_index(drop=True)
 
     # Format scores
-    format_dict = {"Health": "{:.0f}", "Traffic": "{:.0f}", "Conversie": "{:.0f}",
-                   "Ruimte": "{:.0f}", "Klantwaarde": "{:.0f}", "Data Trust": "{:.0f}"}
+    format_dict = {"Health": "{:.0f}", "Traffic": "{:.0f}", "Conversion": "{:.0f}",
+                   "Space": "{:.0f}", "Cust. Value": "{:.0f}", "Data Trust": "{:.0f}"}
     display_df = overview_df.copy()
     for col, fmt in format_dict.items():
         if col in display_df.columns:
@@ -738,7 +738,7 @@ if len(benchmarked_results) > 1:
     # Highlight selected store
     display_df[""] = ["▶" if r.store_id == selected_shop_id else "" for r in sorted(benchmarked_results, key=lambda r: r.health_score if pd.notna(r.health_score) else -1, reverse=True)]
 
-    st.dataframe(display_df[["", "Winkel", "Health", "Traffic", "Conversie", "Ruimte", "Klantwaarde", "Data Trust"]], use_container_width=True, hide_index=True)
+    st.dataframe(display_df[["", "Store", "Health", "Traffic", "Conversion", "Space", "Cust. Value", "Data Trust"]], use_container_width=True, hide_index=True)
 
 # ── Trend chart ─────────────────────────────────────────────────────────────
 st.markdown("---")
@@ -798,11 +798,11 @@ if len(df) > 0 and "date" in df.columns:
             fig_trend.add_hrect(y0=45, y1=60, fillcolor="#F59E0B", opacity=0.05, line_width=0)
 
             fig_trend.add_hline(y=75, line_dash="dot", line_color="#22C55E",
-                               annotation_text="Uitstekend (75)", annotation_position="top left")
+                               annotation_text="Excellent (75)", annotation_position="top left")
             fig_trend.add_hline(y=60, line_dash="dot", line_color="#84CC16",
-                               annotation_text="Goed (60)", annotation_position="top left")
+                               annotation_text="Good (60)", annotation_position="top left")
             fig_trend.add_hline(y=45, line_dash="dot", line_color="#F59E0B",
-                               annotation_text="Aandacht (45)", annotation_position="top left")
+                               annotation_text="Attention (45)", annotation_position="top left")
 
             fig_trend.update_layout(
                 height=350,
@@ -816,11 +816,11 @@ if len(df) > 0 and "date" in df.columns:
             )
             st.plotly_chart(fig_trend, use_container_width=True)
         else:
-            st.info("Niet genoeg data voor een trend.")
+            st.info("Not enough data for a trend.")
     else:
-        st.info("Geen data beschikbaar voor geselecteerde winkel.")
+        st.info("No data available for selected store.")
 else:
-    st.info("Geen datumdata beschikbaar voor trend.")
+    st.info("No date data available for trend.")
 
 # ── AI Health Coach ────────────────────────────────────────────────────────
 st.markdown("---")
@@ -831,38 +831,38 @@ if result.health_score is not None and not pd.isna(result.health_score):
     # Build compact prompt text (label + score only)
     pillar_desc = []
     for p in valid_pillars:
-        pillar_desc.append(f"- {p.label}: {p.score:.0f} — {p.reason or 'zie boven'}")
+        pillar_desc.append(f"- {p.label}: {p.score:.0f} — {p.reason or 'see above'}")
     pillar_text = "\n".join(pillar_desc)
     weakest = min(valid_pillars, key=lambda p: p.score) if valid_pillars else None
     strongest = max(valid_pillars, key=lambda p: p.score) if valid_pillars else None
 
     # ── 1. Priority Actions ─────────────────────────────────────────────────
-    with st.spinner("🧠 Prioriteiten berekenen..."):
+    with st.spinner("🧠 Computing priorities..."):
         # Compact pillar summary for prompt (label + score only, no reasons)
         pillar_brief = ", ".join(f"{p.label} {p.score:.0f}" for p in valid_pillars)
 
-        action_prompt = f"""Winkel {result.store_name}: Health Score {result.health_score:.0f} ({band_labels.get(result.health_band, '–')}), formaat {store_format}. Pijlers: {pillar_brief}.
+        action_prompt = f"""Store {result.store_name}: Health Score {result.health_score:.0f} ({band_labels.get(result.health_band, '–')}), format {store_format}. Pillars: {pillar_brief}.
 
-Geef 3 prioritaire acties (hoogste impact eerst). Per actie: titel + 1 zin + concreet doel. Nederlands, retail-termen, geen intro."""
+Give 3 priority actions (highest impact first). Per action: title + 1 sentence + concrete goal. English, retail terms, no intro."""
 
         action_result = ask_health_coach(
-            "Je bent een retail analytics expert. Antwoord ALLEEN met de 3 acties in het Nederlands. Geen denken, geen uitleg van je methode, geen intro. Start direct met actie 1.",
+            "You are a retail analytics expert. Answer ONLY with the 3 actions in English. No thinking, no method explanation, no intro. Start directly with action 1.",
             action_prompt,
             max_tokens=1500,
         )
 
     if action_result:
-        st.markdown("#### 🎯 Prioriteiten")
+        st.markdown("#### 🎯 Priorities")
         st.markdown(action_result)
     else:
         # Fallback: rule-based
         if weakest:
-            st.markdown("#### 🎯 Prioriteit")
-            st.markdown(f"Focus op **{weakest.label}** ({weakest.score:.0f}) — {weakest.reason}")
-        st.caption("*AI coach niet beschikbaar — toon regelgebaseerde hint.*")
+            st.markdown("#### 🎯 Priority")
+            st.markdown(f"Focus on **{weakest.label}** ({weakest.score:.0f}) — {weakest.reason}")
+        st.caption("*AI coach unavailable — showing rule-based hint.*")
 
     # ── 2. What-If Scenarios ────────────────────────────────────────────────
-    with st.spinner("🧠 What-if scenario's berekenen..."):
+    with st.spinner("🧠 Computing what-if scenarios..."):
         # Calculate potential score improvements
         conv_bump = 2  # pp
         traffic_bump_pct = 10  # percent more footfall
@@ -890,7 +890,7 @@ Geef 3 prioritaire acties (hoogste impact eerst). Per actie: titel + 1 zin + con
             conv_bump_note = f"Conversie +{conv_bump}pp → Health Score {result_bump_conv.health_score:.0f}" if pd.notna(result_bump_conv.health_score) else ""
         else:
             result_bump_conv = None
-            conv_bump_note = "(geen conversiedata beschikbaar)"
+            conv_bump_note = "(no conversion data available)"
 
         # Simulate: what if footfall goes up by 10%?
         new_footfall = float(row.get("footfall", np.nan))
@@ -915,25 +915,25 @@ Geef 3 prioritaire acties (hoogste impact eerst). Per actie: titel + 1 zin + con
             traffic_bump_note = f"Footfall +{traffic_bump_pct}% → Health Score {result_bump_traffic.health_score:.0f}" if pd.notna(result_bump_traffic.health_score) else ""
         else:
             result_bump_traffic = None
-            traffic_bump_note = "(geen footfalldata beschikbaar)"
+            traffic_bump_note = "(no footfall data available)"
 
         whatif_data = []
         if conv_bump_note and result_bump_conv:
-            whatif_data.append({"Scenario": f"Conversie +{conv_bump}pp", "Nieuwe Score": f"{result_bump_conv.health_score:.0f}", "Verschil": f"{result_bump_conv.health_score - result.health_score:+.0f}"})
+            whatif_data.append({"Scenario": f"Conversion +{conv_bump}pp", "New Score": f"{result_bump_conv.health_score:.0f}", "Delta": f"{result_bump_conv.health_score - result.health_score:+.0f}"})
         if traffic_bump_note and result_bump_traffic:
-            whatif_data.append({"Scenario": f"Footfall +{traffic_bump_pct}%", "Nieuwe Score": f"{result_bump_traffic.health_score:.0f}", "Verschil": f"{result_bump_traffic.health_score - result.health_score:+.0f}"})
+            whatif_data.append({"Scenario": f"Footfall +{traffic_bump_pct}%", "New Score": f"{result_bump_traffic.health_score:.0f}", "Delta": f"{result_bump_traffic.health_score - result.health_score:+.0f}"})
 
         if whatif_data:
-            st.markdown("#### 🔄 What-If Scenario's")
+            st.markdown("#### 🔄 What-If Scenarios")
             whatif_df = pd.DataFrame(whatif_data)
             st.dataframe(whatif_df, use_container_width=True, hide_index=True)
-            st.caption(f"Huidige Health Score: **{result.health_score:.0f}**")
+            st.caption(f"Current Health Score: **{result.health_score:.0f}**")
         else:
-            st.info("Niet genoeg data voor what-if scenario's.")
+            st.info("Not enough data for what-if scenarios.")
 
     # ── 3. Benchmark Context ────────────────────────────────────────────────
     if len(benchmarked_results) > 1:
-        with st.spinner("🧠 Benchmark-analyse..."):
+        with st.spinner("🧠 Benchmark analysis..."):
             bench_rows = []
             for r in sorted(benchmarked_results, key=lambda r: r.health_score if pd.notna(r.health_score) else -1, reverse=True):
                 if pd.notna(r.health_score):
@@ -942,26 +942,26 @@ Geef 3 prioritaire acties (hoogste impact eerst). Per actie: titel + 1 zin + con
 
             all_scores = [r.health_score for r in benchmarked_results if pd.notna(r.health_score)]
             median_score = np.median(all_scores) if all_scores else result.health_score
-            position = "boven" if result.health_score >= median_score else "onder"
+            position = "above" if result.health_score >= median_score else "below"
 
-            bench_prompt = f"""Analyseer de positie van {result.store_name} binnen deze retailer.
+            bench_prompt = f"""Analyze the position of {result.store_name} within this retailer.
 
 {result.store_name} score: {result.health_score:.0f} ({band_labels.get(result.health_band, '–')})
 Retailer mediaan: {median_score:.0f}
-{result.store_name} is {position} het mediaan.
+{result.store_name} is {position} the median.
 
-Alle winkel-scores:
+All store scores:
 {bench_text}
 
 Regels:
-- Identificeer patronen: welke winkels presteren goed/slecht en waarom?
-- Vergelijk {result.store_name} met de top-performer
-- Geef 1 concreet inzicht over wat deze winkel kan leren van de betere performers
-- Schrijf in het Nederlands, max 100 woorden
-- Geen intro, direct ter zake"""
+- Identify patterns: which stores perform well/poorly and why?
+- Compare {result.store_name} with the top performer
+- Give 1 concrete insight on what this store can learn from better performers
+- Write in English, max 100 words
+- No intro, straight to the point"""
 
             bench_result = ask_health_coach(
-                "Je bent een retail benchmark analyst. Antwoord ALLEEN met je analyse in het Nederlands. Geen denken, geen methode-uitleg, direct ter zake.",
+                "You are a retail benchmark analyst. Answer ONLY with your analysis in English. No thinking, no method explanation, get straight to the point.",
                 bench_prompt,
                 max_tokens=1000,
             )
@@ -970,51 +970,51 @@ Regels:
         if bench_result:
             st.markdown(bench_result)
         else:
-            st.markdown(f"{result.store_name} scoort **{result.health_score:.0f}** — {position} het mediaan van **{median_score:.0f}**.")
-            st.caption("*AI benchmark analyse niet beschikbaar.*")
+            st.markdown(f"{result.store_name} scores **{result.health_score:.0f}** — {position} the median of **{median_score:.0f}**.")
+            st.caption("*AI benchmark analysis unavailable.*")
     else:
-        st.info("Benchmark context beschikbaar vanaf 2 winkels.")
+        st.info("Benchmark context available from 2 stores onwards.")
 
 else:
-    st.info("Nog onvoldoende data voor de AI Health Coach. Selecteer een periode met data.")
+    st.info("Not enough data for the AI Health Coach. Select a period with data.")
 
 # ── Methodology ─────────────────────────────────────────────────────────────
-with st.expander("📖 Methodologie — Hoe wordt de Health Score berekend?"):
+with st.expander("📖 Methodology — How is the Health Score calculated?"):
     st.markdown("""
-    ### Store Health Score Methodologie
+    ### Store Health Score Methodology
 
-    De Store Health Score combineert **5 pijlers** in één score (0-100):
+    The Store Health Score combines **5 pillars** into one score (0-100):
 
-    | Pijler | Gewicht (standaard) | Wat meet het? |
+    | Pillar | Weight (standard) | What does it measure? |
     |--------|---------------------|---------------|
-    | 🚶 Traffic Vitality | 25% | Footfall index vs regio + YoY trend |
-    | 💰 Conversion Power | 25% | Conversie ratio + Sales Per Visitor |
-    | 📐 Space Efficiency | 20% | Omzet per m² + Capture index |
-    | 🎯 Customer Value | 15% | Average Transaction Value + SPV diepte |
-    | 📡 Data Trust | 15% | Sensor uptime + data compleetheid |
+    | 🚶 Traffic Vitality | 25% | Footfall index vs region + YoY trend |
+    | 💰 Conversion Power | 25% | Conversion rate + Sales Per Visitor |
+    | 📐 Space Efficiency | 20% | Revenue per m² + Capture index |
+    | 🎯 Customer Value | 15% | Average Transaction Value + SPV depth |
+    | 📡 Data Trust | 15% | Sensor uptime + data completeness |
 
-    **Benchmark:** Pijler-scores worden berekend t.o.v. het mediaan van alle winkels binnen dezelfde retailer. Een score van 100 betekent 'op mediaan niveau'.
+    **Benchmark:** Pillar scores are calculated relative to the median of all stores within the same retailer. A score of 100 means 'at median level'.
 
-    **Format-specifieke gewichten:**
-    - 📈 Groeiformaat: Traffic 35%, Conversie 25%, Ruimte 10%, Klantwaarde 20%, Data 10%
-    - 📉 Krimpformaat: Traffic 15%, Conversie 20%, Ruimte 35%, Klantwaarde 15%, Data 15%
+    **Format-specific weights:**
+    - 📈 Growth: Traffic 35%, Conversion 25%, Space 10%, Cust. Value 20%, Data 10%
+    - 📉 Shrink: Traffic 15%, Conversion 20%, Space 35%, Cust. Value 15%, Data 15%
 
     **Score bands:**
-    - 🟢 **75+ Uitstekend** — Sterke positie, focus op behoud en premium beleving
-    - 🟢 **60-74 Goed** — Goede basis, gerichte optimalisatie voor extra groei
-    - 🟠 **45-59 Aandacht** — Meerdere KPI's onder regio; plan nodig op traffic én SPV
-    - 🔴 **0-44 Kritiek** — Structurele achterstand; herijk formule, team en marketingmix
+    - 🟢 **75+ Excellent** — Strong position, focus on retention and premium experience
+    - 🟢 **60-74 Good** — Solid baseline, targeted optimization for extra growth
+    - 🟠 **45-59 Needs Attention** — Multiple KPIs below regional benchmarks; plan needed for traffic & SPV
+    - 🔴 **0-44 Critical** — Structural lag; re-evaluate formula, team and marketing mix
 
-    **Actiegerichte aanbevelingen** worden automatisch gegenereerd op basis van de zwakste pijler(s).
+    **Action-oriented recommendations** are automatically generated based on the weakest pillar(s).
     """)
 
 # ── Debug ───────────────────────────────────────────────────────────────────
-with st.expander("🔧 Debug — ruwe data"):
+with st.expander("🔧 Debug — raw data"):
     st.write("Shop ID:", selected_shop_id)
     st.write("Shop name:", selected_shop_name)
-    st.write("Periode:", selected_period.start, "→", selected_period.end)
-    st.write("Formaat:", store_format)
-    st.write("Aantal winkels in benchmark:", len(all_shop_ids))
+    st.write("Period:", selected_period.start, "→", selected_period.end)
+    st.write("Format:", store_format)
+    st.write("Stores in benchmark:", len(all_shop_ids))
     st.write("Benchmarks — footfall median:", footfall_median)
     st.write("Benchmarks — conversion median:", conv_median)
     st.write("Benchmarks — SPV median:", spv_median)
@@ -1023,5 +1023,5 @@ with st.expander("🔧 Debug — ruwe data"):
     st.write("SQM map (regions.csv):", sqm_map)
     st.write("SQM map (API):", api_sqm_map)
     st.write("SQM map (final, merged):", final_sqm_map)
-    st.write("Rows ontvangen:", len(df))
+    st.write("Rows received:", len(df))
     st.dataframe(store_agg, use_container_width=True)

@@ -19,9 +19,9 @@ def advisor_for_store(store_name: str, hist_day: Dict[str, Any], forecast_day: D
 
     # Weer → staffing & floor actions
     if pop >= 0.60 and hist_day.get("visitors", 0) >= max(1, hist_day.get("visitors_p30", 0)):
-        acts_store.append("Verplaats pauzes 30 min vóór verwachte bui; focus op begroeten/fit-advies om conversiedip te voorkomen.")
+        acts_store.append("Shift breaks 30 min before expected rain; focus on greeting/fit advice to prevent conversion dip.")
     if temp_anom >= 4:
-        acts_store.append("Verleng piekshift +1u en highlight lichte/outdoor sets bij entree (verwachte +SPV).")
+        acts_store.append("Extend peak shift +1h and highlight lightweight/outdoor sets at entrance (expected +SPV).")
     if forecast_day.get("feels_like", 999) <= 5:
         acts_store.append("Comfort-maatregelen bij entree; promoot cold-weather accessoires.")
 

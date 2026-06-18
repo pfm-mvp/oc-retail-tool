@@ -10,7 +10,7 @@ def _load_pathzz_sample(csv_path: Path | None = None) -> pd.DataFrame:
     """
     Laadt de demo-Pathzz CSV en zet deze om naar een weekly dataframe.
 
-    - Kolom 'Week' heeft formaat 'YYYY-MM-DD To YYYY-MM-DD'
+    - Column 'Week' has format 'YYYY-MM-DD To YYYY-MM-DD'
     - Kolom 'Visits' gebruikt een punt als duizendtalscheiding (16.725 = 16725)
     """
     if csv_path is None:
@@ -41,9 +41,9 @@ def _load_pathzz_sample(csv_path: Path | None = None) -> pd.DataFrame:
 
 def fetch_weekly_street_traffic(start_date, end_date) -> pd.DataFrame:
     """
-    Geeft een subset van de Pathzz-weekdata terug tussen start_date en end_date.
+    Returns a subset of Pathzz weekly data tussen start_date en end_date.
 
-    We filteren op basis van week_start (eerste dag van het week-interval),
+    We filtern op basis van week_start (eerste dag van het week-interval),
     maar in de Copilot wordt straks op een 'week_label' gematcht zodat
     Pathzz-weken en store-weken altijd samenvallen.
     """

@@ -62,7 +62,7 @@ with c4:
 
 payback_target = st.slider("Payback-target (mnd)", 6, 24, 12, 1, key="roi_payback_target")
 
-# ── Data ophalen ───────────────────────────────────────────────────────────────
+# ── Data fetching ───────────────────────────────────────────────────────────────
 KPI_KEYS = ["count_in", "conversion_rate", "turnover", "sales_per_visitor"]
 params = []
 for sid in ID_TO_NAME.keys():
@@ -79,7 +79,7 @@ if friendly_error(js, period):
 df = normalize_vemcount_response(js, ID_TO_NAME, kpi_keys=KPI_KEYS)
 
 if df is None or df.empty:
-    st.warning("Geen data ontvangen voor deze periode/parameters.")
+    st.warning("No data received for this period/parameters.")
     with st.expander("🔧 Debug"):
         st.write("Params:", params)
         st.write("Normalize → empty DataFrame")
@@ -103,8 +103,8 @@ with st.expander("🔧 Debug — fetch result"):
     st.write("Rows:", len(df), "Shops:", df["shop_id"].nunique())
     st.dataframe(df.head(12))
 
-# ── Baseline aggregatie per winkel ─────────────────────────────────────────────
-# Weighted averages (naar bezoekers) voor conversie en SPV
+# ── Baseline aggregation per store ─────────────────────────────────────────────
+# Weighted averages (by visitors) for conversion and SPV
 def _weighted_avg(x, w):
     w = pd.to_numeric(w, errors="coerce").fillna(0.0)
     x = pd.to_numeric(x, errors="coerce").fillna(0.0)
@@ -137,15 +137,15 @@ base = g.merge(w_conv, on="shop_id", how="left").merge(w_spv, on="shop_id", how=
 conv_frac = pd.to_numeric(base["conversion_rate"], errors="coerce") / 100.0
 base["ATV"] = np.where(conv_frac > 0, base["sales_per_visitor"] / conv_frac, 0.0)
 
-# ── Scenario (Optie 1: uplift op conversie in **pp** én uplift op **ATV**) ─────
-# Nieuwe conversie in % met klamp 0..100
+# ── Scenario (Option 1: uplift on conversion in **pp** and uplift on **ATV**) ─────
+# New conversion in % clamped to 0..100
 new_conv_pct = np.clip(base["conversion_rate"] + conv_add_pp, 0.0, 100.0)
 new_conv_frac = new_conv_pct / 100.0
 
 # Nieuwe ATV met uplift
 new_atv = base["ATV"] * (1.0 + atv_uplift_pct)
 
-# Nieuwe SPV = (nieuwe conversie) × (nieuwe ATV)
+# New SPV = (new conversion) × (new ATV)
 new_spv = new_conv_frac * new_atv
 
 # Extra omzet en brutowinst
@@ -165,7 +165,7 @@ roi_pct = ((extra_gp.sum() - total_capex) / total_capex * 100.0) if total_capex 
 
 # ── KPI cards ─────────────────────────────────────────────────────────────────
 kc1, kc2, kc3, kc4 = st.columns(4)
-kc1.metric("📈 Extra omzet (scenario)", fmt_eur(extra_rev.sum()))
+kc1.metric("📈 Extra revenue (scenario)", fmt_eur(extra_rev.sum()))
 kc2.metric("💵 Extra brutowinst", fmt_eur(extra_gp.sum()))
 kc3.metric("⏳ Payback", "∞ mnd" if np.isinf(payback_months) else f"{payback_months:.1f} mnd",
            delta=f"Target {payback_target} mnd")
@@ -182,16 +182,16 @@ view = view.sort_values("extra_gross_profit", ascending=False).head(10)
 # Pretty columns
 out = view[["shop_name", "count_in", "sales_per_visitor", "conversion_rate", "ATV", "extra_gross_profit"]].copy()
 out.rename(columns={
-    "shop_name": "winkel",
-    "count_in": "bezoekers",
+    "shop_name": "store",
+    "count_in": "visitors",
     "sales_per_visitor": "SPV",
-    "conversion_rate": "conversie",
+    "conversion_rate": "conversion",
     "extra_gross_profit": "extra_brutowinst",
 }, inplace=True)
 
-out["bezoekers"]       = out["bezoekers"].map(fmt_int)
+out["visitors"]       = out["visitors"].map(fmt_int)
 out["SPV"]             = out["SPV"].map(lambda x: fmt_eur(x, 2))
-out["conversie"]       = out["conversie"].map(lambda x: fmt_pct(x, 2))
+out["conversion"]       = out["conversion"].map(lambda x: fmt_pct(x, 2))
 out["ATV"]             = out["ATV"].map(lambda x: fmt_eur(x, 2))
 out["extra_brutowinst"]= out["extra_brutowinst"].map(fmt_eur)
 
@@ -200,11 +200,11 @@ st.dataframe(out, use_container_width=True)
 # ── Board tips ────────────────────────────────────────────────────────────────
 st.subheader("🤖 Board Tips")
 st.markdown(
-    f"- **+{conv_add_pp:.1f} pp conversie** en **+{atv_uplift_pct*100:.0f}% ATV** leveren "
+    f"- **+{conv_add_pp:.1f} pp conversion** en **+{atv_uplift_pct*100:.0f}% ATV** leveren "
     f"**{fmt_eur(extra_gp.sum())}** extra brutowinst op in ~{months:.1f} mnd; "
     f"payback ≈ **{('∞' if np.isinf(payback_months) else f'{payback_months:.1f}')} mnd**."
 )
-st.markdown("- Richt CAPEX op winkels met **hoog verkeer maar lage SPV/conversie** (zie Region Performance).")
+st.markdown("- Direct CAPEX to stores with **high traffic but low SPV/conversion** (see Region Performance).")
 
 # ── Extra debug ───────────────────────────────────────────────────────────────
 with st.expander("🔧 Debug — berekening"):

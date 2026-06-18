@@ -144,7 +144,7 @@ def compute_traffic_vitality(
     Returns (score 0-100, raw_value, reason).
     """
     if pd.isna(footfall) or footfall == 0:
-        return np.nan, np.nan, "Geen footfall data beschikbaar."
+        return np.nan, np.nan, "No footfall data available."
 
     # Index vs region (100 = median)
     idx = (footfall / footfall_region_median * 100) if (pd.notna(footfall_region_median) and footfall_region_median > 0) else np.nan
@@ -160,14 +160,14 @@ def compute_traffic_vitality(
     elif pd.notna(yoy_ratio):
         composite = yoy_ratio
     else:
-        return np.nan, np.nan, "Te weinig data voor traffic vitaliteit."
+        return np.nan, np.nan, "Not enough data for traffic vitality."
 
     score = _ratio_to_score(composite, floor=30, cap=200)
 
     # Reason
     parts = []
     if pd.notna(idx):
-        parts.append(f"traffic index {idx:.0f} vs regio (100=gemiddeld)")
+        parts.append(f"traffic index {idx:.0f} vs region (100=average)")
     if pd.notna(yoy_ratio):
         trend = "stijgend" if yoy_ratio > 105 else "dalend" if yoy_ratio < 95 else "stabiel"
         parts.append(f"YoY trend {trend} ({yoy_ratio:.0f}%)")
@@ -193,14 +193,14 @@ def compute_conversion_power(
         cr_score = _ratio_to_score(cr_ratio, floor=30, cap=200)
         scores.append(cr_score)
         weights.append(0.6)
-        parts.append(f"conversie {conversion_rate:.1f}% vs {conversion_benchmark:.1f}% benchmark")
+        parts.append(f"conversion {conversion_rate:.1f}% vs {conversion_benchmark:.1f}% benchmark")
     elif pd.notna(conversion_rate):
         # Absolute scoring: <10 poor, 15-25 good, >30 excellent
         cr_abs = np.clip(conversion_rate, 0, 40)
         cr_score = (cr_abs / 40) * 100
         scores.append(cr_score)
         weights.append(0.6)
-        parts.append(f"conversie {conversion_rate:.1f}%")
+        parts.append(f"conversion {conversion_rate:.1f}%")
 
     # SPV score
     if pd.notna(spv) and pd.notna(spv_benchmark) and spv_benchmark > 0:
@@ -216,7 +216,7 @@ def compute_conversion_power(
         parts.append(f"SPV €{spv:.2f}")
 
     if not scores:
-        return np.nan, np.nan, "Geen conversie data beschikbaar."
+        return np.nan, np.nan, "No conversion data available."
 
     total_w = sum(weights)
     score = sum(s * w for s, w in zip(scores, weights)) / total_w
@@ -251,7 +251,7 @@ def compute_space_efficiency(
         parts.append(f"capture index {capture_index:.0f}")
 
     if not scores:
-        return np.nan, np.nan, "Geen ruimte-efficiëntie data."
+        return np.nan, np.nan, "No space efficiency data."
 
     total_w = sum(weights)
     score = sum(s * w for s, w in zip(scores, weights)) / total_w
@@ -286,7 +286,7 @@ def compute_customer_value(
         parts.append(f"SPV €{spv:.2f}")
 
     if not scores:
-        return np.nan, np.nan, "Geen klantwaarde data."
+        return np.nan, np.nan, "No customer value data."
 
     total_w = sum(weights)
     score = sum(s * w for s, w in zip(scores, weights)) / total_w
@@ -317,7 +317,7 @@ def compute_data_trust(
 
     if not scores:
         # If no sensor data, use a neutral default — don't penalize missing data
-        return 70.0, np.nan, "Sensor data niet beschikbaar; neutrale score toegepast."
+        return 70.0, np.nan, "Sensor data unavailable; neutral score applied."
 
     total_w = sum(weights)
     score = sum(s * w for s, w in zip(scores, weights)) / total_w
@@ -336,23 +336,23 @@ def generate_action_hint(result: HealthScoreResult) -> str:
     # Find weakest pillar(s)
     weakest = sorted_pillars[0]
     if pd.isna(weakest.score):
-        return "Voldoende data ontbreekt voor actieve aanbeveling."
+        return "Insufficient data for an active recommendation."
 
     hints = {
-        "traffic_vitality": "Meer instroom en zichtbaarheid nodig — overweeg lokale marketing of locatie-optimalisatie.",
-        "conversion_power": "Bezoekers kopen niet genoeg — focus op ATV, upselling en winkelbeleving.",
-        "space_efficiency": "Ruimte wordt niet optimaal benut — heroverweeg plattegrond, assortiment en prijsstrategie.",
-        "customer_value": "Besteed per bezoeker blijft achter — verbeter productpresentatie en klantbeleving.",
-        "data_trust": "Data betrouwbaarheid is een risico — controleer sensoren en data-kwaliteit.",
+        "traffic_vitality": "More footfall and visibility needed — consider local marketing or location optimization.",
+        "conversion_power": "Visitors not buying enough — focus on ATV, upselling and store experience.",
+        "space_efficiency": "Space not used optimally — reconsider layout, assortment and pricing strategy.",
+        "customer_value": "Spend per visitor lags behind — improve product presentation and customer experience.",
+        "data_trust": "Data reliability is a risk — check sensors and data quality.",
     }
 
     hint = hints.get(weakest.key, "")
 
     # If health score is critical, add urgency
     if result.health_score < 45:
-        hint = "⚠️ Structurele ingreep nodig. " + hint
+        hint = "⚠️ Structural intervention needed. " + hint
     elif result.health_score < 60:
-        hint = "📌 Gerichte actie aanbevolen. " + hint
+        hint = "📌 Targeted action recommended. " + hint
 
     return hint
 
