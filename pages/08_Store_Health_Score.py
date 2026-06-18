@@ -820,7 +820,7 @@ if len(df) > 0 and "date" in df.columns:
     else:
         st.info("No data available for selected store.")
 else:
-    st.info("Geen datumdata beschikbaar voor trend.")
+    st.info("No date data available for trend.")
 
 # ── AI Health Coach ────────────────────────────────────────────────────────
 st.markdown("---")
@@ -857,8 +857,8 @@ Give 3 priority actions (highest impact first). Per action: title + 1 sentence +
     else:
         # Fallback: rule-based
         if weakest:
-            st.markdown("#### 🎯 Prioriteit")
-            st.markdown(f"Focus op **{weakest.label}** ({weakest.score:.0f}) — {weakest.reason}")
+            st.markdown("#### 🎯 Priority")
+            st.markdown(f"Focus on **{weakest.label}** ({weakest.score:.0f}) — {weakest.reason}")
         st.caption("*AI coach unavailable — showing rule-based hint.*")
 
     # ── 2. What-If Scenarios ────────────────────────────────────────────────
@@ -958,7 +958,7 @@ Regels:
 - Compare {result.store_name} with the top performer
 - Give 1 concrete insight on what this store can learn from better performers
 - Write in English, max 100 words
-- Geen intro, direct ter zake"""
+- No intro, straight to the point"""
 
             bench_result = ask_health_coach(
                 "You are a retail benchmark analyst. Answer ONLY with your analysis in English. No thinking, no method explanation, get straight to the point.",
@@ -970,7 +970,7 @@ Regels:
         if bench_result:
             st.markdown(bench_result)
         else:
-            st.markdown(f"{result.store_name} scoort **{result.health_score:.0f}** — {position} the median of **{median_score:.0f}**.")
+            st.markdown(f"{result.store_name} scores **{result.health_score:.0f}** — {position} the median of **{median_score:.0f}**.")
             st.caption("*AI benchmark analysis unavailable.*")
     else:
         st.info("Benchmark context available from 2 stores onwards.")
@@ -981,7 +981,7 @@ else:
 # ── Methodology ─────────────────────────────────────────────────────────────
 with st.expander("📖 Methodology — How is the Health Score calculated?"):
     st.markdown("""
-    ### Store Health Score Methodologie
+    ### Store Health Score Methodology
 
     The Store Health Score combines **5 pillars** into one score (0-100):
 
@@ -1023,5 +1023,5 @@ with st.expander("🔧 Debug — raw data"):
     st.write("SQM map (regions.csv):", sqm_map)
     st.write("SQM map (API):", api_sqm_map)
     st.write("SQM map (final, merged):", final_sqm_map)
-    st.write("Rows ontvangen:", len(df))
+    st.write("Rows received:", len(df))
     st.dataframe(store_agg, use_container_width=True)

@@ -165,7 +165,7 @@ roi_pct = ((extra_gp.sum() - total_capex) / total_capex * 100.0) if total_capex 
 
 # ── KPI cards ─────────────────────────────────────────────────────────────────
 kc1, kc2, kc3, kc4 = st.columns(4)
-kc1.metric("📈 Extra omzet (scenario)", fmt_eur(extra_rev.sum()))
+kc1.metric("📈 Extra revenue (scenario)", fmt_eur(extra_rev.sum()))
 kc2.metric("💵 Extra brutowinst", fmt_eur(extra_gp.sum()))
 kc3.metric("⏳ Payback", "∞ mnd" if np.isinf(payback_months) else f"{payback_months:.1f} mnd",
            delta=f"Target {payback_target} mnd")

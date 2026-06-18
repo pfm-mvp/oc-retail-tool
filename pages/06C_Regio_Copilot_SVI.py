@@ -871,10 +871,10 @@ def plot_macro_panel(df_region_daily: pd.DataFrame, macro_start, macro_end):
         .mark_line(point=True)
         .encode(
             x=x_enc,
-            y=alt.Y("idx:Q", title="Regio-index (100 = start)"),
+            y=alt.Y("idx:Q", title="Region index (100 = start)"),
             color=alt.Color("series:N", scale=region_color_scale, legend=alt.Legend(title="", orient="right")),
             tooltip=[
-                alt.Tooltip("month:T", title="Maand"),
+                alt.Tooltip("month:T", title="Month"),
                 alt.Tooltip("series:N", title="Reeks"),
                 alt.Tooltip("idx:Q", title="Index", format=".1f"),
             ],
@@ -904,7 +904,7 @@ def plot_macro_panel(df_region_daily: pd.DataFrame, macro_start, macro_end):
                     legend=alt.Legend(title="", orient="right"),
                 ),
                 tooltip=[
-                    alt.Tooltip("month:T", title="Maand"),
+                    alt.Tooltip("month:T", title="Month"),
                     alt.Tooltip("value:Q", title=label, format=".1f"),
                 ],
             )
@@ -913,7 +913,7 @@ def plot_macro_panel(df_region_daily: pd.DataFrame, macro_start, macro_end):
     c1, c2 = st.columns(2)
 
     with c1:
-        st.markdown("**CBS detailhandelindex vs Regio**")
+        st.markdown("**CBS retail index vs Region**")
         mline = macro_line(ridx_df, "CBS retail index", dash=True)
         chart = alt.layer(region_lines, mline) if mline is not None else region_lines
         st.altair_chart(
@@ -922,7 +922,7 @@ def plot_macro_panel(df_region_daily: pd.DataFrame, macro_start, macro_end):
         )
 
     with c2:
-        st.markdown("**Consumentenvertrouwen (CCI) vs Regio**")
+        st.markdown("**Consumer confidence (CCI) vs Region**")
         mline = macro_line(cci_df, "CCI", dash=True)
         chart = alt.layer(region_lines, mline) if mline is not None else region_lines
         st.altair_chart(

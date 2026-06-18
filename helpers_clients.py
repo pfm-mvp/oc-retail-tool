@@ -23,6 +23,6 @@ def load_clients(json_path: str | Path = "clients.json") -> List[Dict[str, Any]]
         data = json.load(f)
 
     if not isinstance(data, list):
-        raise ValueError("clients.json moet een lijst van clients bevatten.")
+        raise ValueError("clients.json must contain a list of clients.")
 
     return data

@@ -200,7 +200,7 @@ def build_region_store_radar(
         if np.isnan(score):
             headline = "Onvoldoende data"
         elif score < 90:
-            headline = "Presteert onder verwachting"
+            headline = "Performs below expectations"
         elif score < 110:
             headline = "Heeft aandacht nodig"
         else:
@@ -212,35 +212,35 @@ def build_region_store_radar(
         # Omzet / m² / SPV
         if not np.isnan(t_idx):
             if t_idx < 90:
-                parts.append(f"Omzet ligt ~{round(100 - t_idx):d}% onder regiomedian")
+                parts.append(f"Revenue is ~{round(100 - t_idx):d}% below region median")
             elif t_idx > 110:
-                parts.append(f"Omzet ligt ~{round(t_idx - 100):d}% boven regiomedian")
+                parts.append(f"Revenue is ~{round(t_idx - 100):d}% above region median")
 
         if not np.isnan(sqm_idx):
             if sqm_idx < 90:
-                parts.append(f"Omzet per m² ~{round(100 - sqm_idx):d}% lager dan regiomedian")
+                parts.append(f"Revenue per m² ~{round(100 - sqm_idx):d}% lower than region median")
             elif sqm_idx > 110:
-                parts.append(f"Omzet per m² ~{round(sqm_idx - 100):d}% hoger dan regiomedian")
+                parts.append(f"Revenue per m² ~{round(sqm_idx - 100):d}% higher than region median")
 
         if not np.isnan(spv_idx):
             if spv_idx < 90:
-                parts.append(f"Besteding per bezoeker ~{round(100 - spv_idx):d}% lager dan regiomedian")
+                parts.append(f"Spend per visitor ~{round(100 - spv_idx):d}% lower than region median")
             elif spv_idx > 110:
-                parts.append(f"Besteding per bezoeker ~{round(spv_idx - 100):d}% hoger dan regiomedian")
+                parts.append(f"Spend per visitor ~{round(spv_idx - 100):d}% higher than region median")
 
         # Potentie
         if pot_annual > 0:
             # we geven alleen grove orde (duizenden afronden)
             pot_k = int(round(pot_annual / 1000.0) * 1000)
             if pot_k > 0:
-                parts.append(f"Ruimte voor ~€{pot_k:,.0f} extra omzet per jaar op basis van m²-benchmark".replace(",", "."))
+                parts.append(f"Room for ~€{pot_k:,.0f} extra revenue per year based on m² benchmark".replace(",", "."))
 
         # Capture-context
         if avg_capture is not None and not np.isnan(avg_capture):
             parts.append(f"Region capture rate around ~{avg_capture:.1f}% (street → store)")
 
         if not parts:
-            short_reason = "Presteert ongeveer op regiogemiddelde."
+            short_reason = "Performs approximately at regional average."
         else:
             # maak het compact, maximaal 2–3 stukjes
             short_reason = "; ".join(parts[:3])

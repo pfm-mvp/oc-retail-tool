@@ -167,10 +167,10 @@ def build_simple_footfall_turnover_forecast(
     min_history_days: int = 30,
 ) -> dict:
     """
-    Simpele day-of-week forecast voor footfall & omzet.
+    Simple day-of-week forecast for footfall & revenue.
 
-    Verwacht:
-    - df_all_raw met minimaal kolommen: 'date', 'footfall'
+    Expects:
+    - df_all_raw with minimaal kolommen: 'date', 'footfall'
     - optioneel: 'turnover'
     - 'sales_per_visitor' wordt berekend als die nog niet bestaat
 
@@ -236,7 +236,7 @@ def build_simple_footfall_turnover_forecast(
     global_spv = df["sales_per_visitor"].mean()
     fc["spv_mean"] = fc["spv_mean"].fillna(global_spv)
 
-    # Footfall & omzet forecast
+    # Footfall & revenue forecast
     fc["footfall_forecast"] = fc["footfall_mean"].clip(lower=0)
     fc["turnover_forecast"] = fc["footfall_forecast"] * fc["spv_mean"]
 
@@ -279,8 +279,8 @@ def build_pro_footfall_turnover_forecast(
     use_weather: bool = False,
 ) -> dict:
     """
-    Pro-forecast met:
-    - LightGBM (als beschikbaar)
+    Pro-forecast with:
+    - LightGBM (if available)
     - Retail calendar features (dow, month, Q4, Christmas period, Black Friday, holidays, summer)
     - Lags & rolling means
     - Optioneel: weerfeatures (temp, precip, windspeed) via Visual Crossing
@@ -431,7 +431,7 @@ def build_pro_footfall_turnover_forecast(
     last_date = df["date"].max()
     global_spv = df["sales_per_visitor"].mean()
 
-    # Helper om kalenderfeatures voor een target-dag te halen
+    # Helper to get calendar features for a target day
     def _calendar_features_for_date(ts: pd.Timestamp) -> Dict[str, Any]:
         tmp = pd.DataFrame({"date": [ts]})
         tmp = add_retail_calendar_features(tmp, date_col="date")
@@ -472,7 +472,7 @@ def build_pro_footfall_turnover_forecast(
         # Kalenderfeatures
         cal = _calendar_features_for_date(target_date)
 
-        # Lags uit foot_hist (historisch + eerder voorspelde waarden)
+        # Lags from foot_hist (historical + earlier predicted values)
         def _lag_or_last(idx_offset: int) -> float:
             idx = new_idx - idx_offset
             if 0 <= idx < len(foot_hist):
@@ -483,7 +483,7 @@ def build_pro_footfall_turnover_forecast(
         lag_7 = _lag_or_last(7)
         lag_14 = _lag_or_last(14)
 
-        # rolling means over de laatste 7 / 28 bekende punten (incl. voorspelde)
+        # rolling means over the last 7 / 28 known points (incl. predicted)
         if len(foot_hist) > 0:
             roll_7 = float(np.mean(foot_hist[-7:])) if len(foot_hist) >= 3 else float(
                 np.mean(foot_hist)

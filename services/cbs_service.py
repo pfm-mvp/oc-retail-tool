@@ -61,7 +61,7 @@ def get_cci_series(months_back: int = 24) -> List[Dict]:
 
 def get_retail_index(months_back: int = 24) -> List[Dict]:
     """
-    Haalt een macro detailhandel-index uit dataset 85828NED.
+    Fetches a macro retail index from dataset 85828NED.
 
     We gebruiken:
       - Perioden (bijv. '2000MM01')
@@ -112,9 +112,9 @@ def get_retail_index(months_back: int = 24) -> List[Dict]:
 
 def get_cbs_stats_for_postcode4(postcode4: str) -> dict:
     """
-    Backwards compatible wrapper voor de Store Copilot.
+    Backwards compatible wrapper for the Store Copilot.
 
-    Retourneert minimaal: {"postcode4": "..."} zodat de Store Copilot niet crasht.
+    Returns at minimum: {"postcode4": "..."} zodat de Store Copilot niet crasht.
     Later kun je hier echte pc4-statistieken aan hangen.
     """
     pc4 = str(postcode4).strip()

@@ -6,8 +6,8 @@ import pandas as pd
 
 def _normalize(series: pd.Series) -> pd.Series:
     """
-    Normaliseer naar 0–100.
-    Als er geen variatie is (of alleen NaN), dan alles op 50 = neutraal.
+    Normalize to 0–100.
+    If no variation (or all NaN), set everything to 50 = neutral.
     """
     s = pd.to_numeric(series, errors="coerce")
     if s.dropna().empty:
@@ -25,7 +25,7 @@ def build_store_vitality(
 ) -> pd.DataFrame:
     """
     Builds per store a Store Vitality Index (SVI, 0–100) + footfall/capture index
-    en omzetpotentieel.
+    and revenue potential.
 
     Verwacht:
     - df_period: dagdata met kolommen:
@@ -71,14 +71,14 @@ def build_store_vitality(
         .reset_index()
     )
 
-    # Omzet per m²
+    # Revenue per m²
     agg["turnover_per_sqm"] = np.where(
         (agg["sqm_effective"] > 0) & (~agg["sqm_effective"].isna()),
         agg["turnover"] / agg["sqm_effective"],
         np.nan,
     )
 
-    # Store-namen erbij
+    # Add store names
     name_map = {}
     for _, row in region_shops.iterrows():
         try:
@@ -92,7 +92,7 @@ def build_store_vitality(
     )
 
     # ---------------------------
-    # 2. Footfall index vs regio
+    # 2. Footfall index vs region
     # ---------------------------
     median_footfall = agg["footfall"].median(skipna=True)
     if not np.isnan(median_footfall) and median_footfall > 0:
@@ -103,7 +103,7 @@ def build_store_vitality(
         agg["footfall_index_region"] = np.nan
 
     # ---------------------------
-    # 3. Capture index vs regio (fair share op basis van m²)
+    # 3. Capture index vs region (fair share based on m²)
     # ---------------------------
     total_footfall = agg["footfall"].sum(skipna=True)
     total_sqm = agg["sqm_effective"].sum(skipna=True)
@@ -131,7 +131,7 @@ def build_store_vitality(
         agg["capture_index_region"] = np.nan
 
     # ---------------------------
-    # 4. Pijlers (0–100)
+    # 4. Pillars (0–100)
     # ---------------------------
 
     # 4.1 Commercial output (omzet + omzet/m² + SPV)
@@ -156,7 +156,7 @@ def build_store_vitality(
     agg["p_space"] = _normalize(agg["turnover_per_sqm"])
 
     # ---------------------------
-    # 5. Eindscore (SVI 0–100)
+    # 5. Final score (SVI 0–100)
     # ---------------------------
     agg["svi_score"] = (
         agg["p_commercial"] * 0.45
@@ -166,7 +166,7 @@ def build_store_vitality(
     )
 
     # ---------------------------
-    # 6. Status & icon + korte reason (0–100 schaal)
+    # 6. Status & icon + short reason (0–100 scale)
     # ---------------------------
     def classify(score: float):
         if pd.isna(score):
@@ -193,35 +193,35 @@ def build_store_vitality(
         ps = r["p_space"]
 
         if pd.isna(s):
-            reasons.append("Te weinig data om een goede beoordeling te maken.")
+            reasons.append("Not enough data for a proper assessment.")
             continue
 
         if s >= 75:
             if pc >= pm:
                 reasons.append(
-                    "Sterke omzet en m²-productiviteit; focus op vasthouden en premium beleving."
+                    "Strong revenue and m² productivity; focus on retention and premium experience."
                 )
             else:
                 reasons.append(
-                    "Sterke positie in traffic en marktaandeel; benut dit met hogere SPV."
+                    "Strong position in traffic and market share; leverage this with higher SPV."
                 )
         elif s >= 60:
             if pv < 50:
                 reasons.append(
-                    "Boven regiogemiddelde, maar besteding per bezoeker blijft achter – focus op ATV/upsell."
+                    "Above regional average, but spend per visitor lags behind — focus on ATV/upsell."
                 )
             else:
                 reasons.append(
-                    "Goede basis; optimaliseer traffic of m²-benutting voor extra groei."
+                    "Solid baseline; optimize traffic or m² utilization for extra growth."
                 )
         elif s >= 45:
             if pm < 50:
                 reasons.append(
-                    "Onder regio op traffic/capture – meer instroom en zichtbaarheid nodig."
+                    "Below region on traffic/capture — more footfall and visibility needed."
                 )
             elif pc < 50:
                 reasons.append(
-                    "Omzet en m²-productiviteit onder regio – kijk naar assortiment en pricing."
+                    "Revenue and m² productivity below region — review assortment and pricing."
                 )
             else:
                 reasons.append(

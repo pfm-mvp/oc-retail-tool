@@ -333,7 +333,7 @@ def debug_cbs_endpoint(dataset: str, top: int = 3) -> dict:
 # -------------
 
 def main():
-    st.title("PFM Region Performance Copilot – Regio-overzicht")
+    st.title("PFM Region Performance Copilot — Region Overview")
 
     radar_df = pd.DataFrame()
 
@@ -345,7 +345,7 @@ def main():
         axis=1,
     )
 
-    st.sidebar.header("Selecteer retailer & regio")
+    st.sidebar.header("Select retailer & region")
 
     client_label = st.sidebar.selectbox("Retailer", clients_df["label"].tolist())
     selected_client = clients_df[clients_df["label"] == client_label].iloc[0].to_dict()
@@ -357,7 +357,7 @@ def main():
     except requests.exceptions.ReadTimeout:
         st.error(
             "Connection to FastAPI server timed out while fetching stores "
-            "(timeout). Probeer het nog eens of kies voorlopig een andere retailer."
+            "(timeout). Try again or choose a different retailer for now."
         )
         return
     except requests.exceptions.RequestException as e:
@@ -409,7 +409,7 @@ def main():
             merged["store_display"] = merged["id"].astype(str)
 
     available_regions = sorted(merged["region"].unique().tolist())
-    region_choice = st.sidebar.selectbox("Regio", available_regions)
+    region_choice = st.sidebar.selectbox("Region", available_regions)
 
     region_shops = merged[merged["region"] == region_choice].copy()
     shop_ids = region_shops["id"].dropna().astype(int).unique().tolist()
@@ -426,7 +426,7 @@ def main():
         "Periode",
         [
             "Kalenderjaar 2024",
-            "Laatste 26 weken",
+            "Last 26 weeks",
         ],
         index=0,
     )
@@ -436,11 +436,11 @@ def main():
     if period_choice == "Kalenderjaar 2024":
         start_period = datetime(2024, 1, 1).date()
         end_period = datetime(2024, 12, 31).date()
-    else:  # "Laatste 26 weken"
+    else:  # "Last 26 weeks"
         end_period = today
         start_period = today - timedelta(weeks=26)
 
-    run_btn = st.sidebar.button("Analyseer regio", type="primary")
+    run_btn = st.sidebar.button("Analyze region", type="primary")
 
     if not run_btn:
         st.info("Choose a retailer, region and period and click **Analyze region**.")
@@ -575,12 +575,12 @@ def main():
             val = f"€ {spv_avg:.2f}".replace(".", ",")
         else:
             val = "-"
-        st.metric("Gem. besteding/visitor", val)
+        st.metric("Avg. spend/visitor", val)
     with col4:
         if avg_capture is not None and not pd.isna(avg_capture):
-            st.metric("Gem. capture rate (regio)", fmt_pct(avg_capture))
+            st.metric("Avg. capture rate (region)", fmt_pct(avg_capture))
         else:
-            st.metric("Gem. capture rate (regio)", "-")
+            st.metric("Avg. capture rate (region)", "-")
 
     # -----------------------
     # Store-level sqm & index analyse (binnen regio)
@@ -653,39 +653,39 @@ def main():
 
             tbl = tbl.rename(
                 columns={
-                    "store_name": "Winkel",
+                    "store_name": "Store",
                     "footfall": "Footfall",
-                    "turnover": "Omzet",
-                    "sales_per_visitor": "Gem. besteding/visitor",
+                    "turnover": "Revenue",
+                    "sales_per_visitor": "Avg. spend/visitor",
                     "sqm_effective": "m² (effectief)",
-                    "turnover_per_sqm": "Omzet per m²",
-                    "sqm_index": "m²-index t.o.v. regio",
+                    "turnover_per_sqm": "Revenue per m²",
+                    "sqm_index": "m²-index vs. region",
                 }
             )
 
             st.dataframe(
                 tbl[
                     [
-                        "Winkel",
+                        "Store",
                         "Footfall",
-                        "Omzet",
-                        "Gem. besteding/visitor",
+                        "Revenue",
+                        "Avg. spend/visitor",
                         "m² (effectief)",
-                        "Omzet per m²",
-                        "m²-index t.o.v. regio",
+                        "Revenue per m²",
+                        "m²-index vs. region",
                     ]
                 ],
                 use_container_width=True,
             )
 
             st.caption(
-                "m²-index t.o.v. regio: 100 = gelijk aan regiomedian. "
-                "Onder 100 → onderbenut potentieel per m², boven 100 → outperformer."
+                "m²-index vs. region: 100 = equal to region median. "
+                "Below 100 → underutilized potential per m², above 100 → outperformer."
             )
     else:
         st.info(
-            "Geen store-level ID of omzet beschikbaar in de dagdata – "
-            "m²-indexanalyse wordt daarom overgeslagen."
+            "No store-level ID or revenue available in the daily data – "
+            "m²-index analysis is therefore skipped."
         )
 
     # -----------------------
@@ -724,7 +724,7 @@ def main():
                 y=alt.Y(
                     "value:Q",
                     axis=alt.Axis(
-                        title="Footfall / streettraffic / omzet (regio)"
+                        title="Footfall / street traffic / revenue (region)"
                     ),
                 ),
                 color=alt.Color(
@@ -750,7 +750,7 @@ def main():
                 x=alt.X("week_label:N", title="Week", sort=week_order),
                 y=alt.Y(
                     "capture_rate:Q",
-                    axis=alt.Axis(title="Capture rate regio (%)"),
+                    axis=alt.Axis(title="Capture rate region (%)"),
                     scale=alt.Scale(zero=True),
                 ),
                 tooltip=[
@@ -772,7 +772,7 @@ def main():
 
         st.altair_chart(combined, use_container_width=True)
 
-        st.markdown("### Weekly tabel – regio-footfall, straattraffic, omzet & capture rate")
+        st.markdown("### Weekly table — region footfall, street traffic, revenue & capture rate")
 
         table_df = capture_weekly[
             ["week_start", "footfall", "street_footfall", "turnover", "capture_rate"]
@@ -789,9 +789,9 @@ def main():
         table_df = table_df.rename(
             columns={
                 "week_start": "Week start",
-                "footfall": "Store footfall (regio)",
+                "footfall": "Store footfall (region)",
                 "street_footfall": "Street footfall (Pathzz)",
-                "turnover": "Omzet (regio)",
+                "turnover": "Revenue (region)",
                 "capture_rate": "Capture rate",
             }
         )
@@ -833,7 +833,7 @@ def main():
             # Extract selected region
             row_cur = region_scores[region_scores["region"] == region_choice]
             if row_cur.empty:
-                st.info("Geen SVI-berekening mogelijk voor deze regio.")
+                st.info("No SVI calculation possible for this region.")
             else:
                 region_svi = float(row_cur["region_svi"].iloc[0])
                 region_svi = float(np.clip(region_svi, 0, 100))
@@ -861,7 +861,7 @@ def main():
                     }
                 )
 
-                st.markdown("### Regio Vitality Index")
+                st.markdown("### Region Vitality Index")
 
                 col_g1, col_g2 = st.columns([1, 1.6])
 
@@ -904,7 +904,7 @@ def main():
                         """
                     )
 
-                    st.markdown("**Vergelijking met andere regio's**")
+                    st.markdown("**Comparison with other regions**")
 
                     chart_regions = region_scores.copy()
                     chart_regions["is_selected"] = chart_regions["region"] == region_choice
@@ -921,7 +921,7 @@ def main():
                             y=alt.Y(
                                 "region:N",
                                 sort="-x",
-                                title="Regio",
+                                title="Region",
                             ),
                             color=alt.Color(
                                 "is_selected:N",
@@ -932,7 +932,7 @@ def main():
                                 legend=None,
                             ),
                             tooltip=[
-                                alt.Tooltip("region:N", title="Regio"),
+                                alt.Tooltip("region:N", title="Region"),
                                 alt.Tooltip(
                                     "region_svi:Q",
                                     title="RVI",
@@ -948,7 +948,7 @@ def main():
             # 3) Store Vitality ranking for selected region only
             svi_region = svi_all[svi_all["region"] == region_choice].copy()
             if svi_region.empty:
-                st.info("Geen store-level SVI beschikbaar voor deze regio.")
+                st.info("No store-level SVI available for this region.")
             else:
                 period_days = (end_ts - start_ts).days + 1
                 year_factor = 365.0 / period_days if period_days > 0 else 1.0
@@ -972,7 +972,7 @@ def main():
                         y=alt.Y(
                             "store_name:N",
                             sort="-x",
-                            title="Winkel",
+                            title="Store",
                         ),
                         color=alt.Color(
                             "svi_status:N",
@@ -993,7 +993,7 @@ def main():
                             ),
                         ),
                         tooltip=[
-                            alt.Tooltip("store_name:N", title="Winkel"),
+                            alt.Tooltip("store_name:N", title="Store"),
                             alt.Tooltip("svi_score:Q", title="SVI", format=".0f"),
                             alt.Tooltip(
                                 "footfall_index_region:Q",
@@ -1019,18 +1019,18 @@ def main():
                 st.altair_chart(chart_rank, use_container_width=True)
 
                 table = svi_region.copy()
-                table["Omzet"] = table["turnover"].map(fmt_eur)
+                table["Revenue"] = table["turnover"].map(fmt_eur)
                 table["Footfall"] = table["footfall"].map(fmt_int)
-                table["Gem. besteding/visitor"] = table["sales_per_visitor"].map(
+                table["Avg. spend/visitor"] = table["sales_per_visitor"].map(
                     lambda x: f"€ {x:.2f}".replace(".", ",") if not pd.isna(x) else "-"
                 )
-                table["Omzet per m²"] = table["turnover_per_sqm"].map(
+                table["Revenue per m²"] = table["turnover_per_sqm"].map(
                     lambda x: fmt_eur(x) if not pd.isna(x) else "-"
                 )
-                table["Footfall-index (regio = 100)"] = table[
+                table["Footfall-index (region = 100)"] = table[
                     "footfall_index_region"
                 ].map(lambda x: fmt_pct(x - 100) if not pd.isna(x) else "-")
-                table["Capture-index (regio = 100)"] = table[
+                table["Capture-index (region = 100)"] = table[
                     "capture_index_region"
                 ].map(lambda x: fmt_pct(x - 100) if not pd.isna(x) else "-")
                 table["Jaarpotentieel"] = table["profit_potential_year"].map(fmt_eur)
@@ -1038,7 +1038,7 @@ def main():
                 view_cols = table.rename(
                     columns={
                         "svi_icon": "",
-                        "store_name": "Winkel",
+                        "store_name": "Store",
                         "svi_score": "SVI-score",
                         "svi_status": "Status",
                         "reason_short": "Short explanation",
@@ -1049,16 +1049,16 @@ def main():
                     view_cols[
                         [
                             "",
-                            "Winkel",
+                            "Store",
                             "SVI-score",
                             "Status",
                             "Short explanation",
-                            "Omzet",
+                            "Revenue",
                             "Footfall",
-                            "Gem. besteding/visitor",
-                            "Omzet per m²",
-                            "Footfall-index (regio = 100)",
-                            "Capture-index (regio = 100)",
+                            "Avg. spend/visitor",
+                            "Revenue per m²",
+                            "Footfall-index (region = 100)",
+                            "Capture-index (region = 100)",
                             "Jaarpotentieel",
                         ]
                     ],
@@ -1066,9 +1066,9 @@ def main():
                 )
 
                 st.caption(
-                    "De SVI combineert omzet, footfall, besteding per bezoeker en omzet per m², "
-                    "met daarbovenop een index t.o.v. de regio voor footfall en 'fair share' van traffic "
-                    "gebaseerd op m². Jaarpotentieel = ruw geannualiseerd omzetverschil t.o.v. regiomedian "
+                    "The SVI combines revenue, footfall, spend per visitor and revenue per m², "
+                    "plus an index vs. the region for footfall and traffic 'fair share' "
+                    "based on m². Annual potential = raw annualized revenue difference vs. region median "
                     "per m² within the selected period."
                 )
 
@@ -1083,10 +1083,10 @@ def main():
     cci_df = pd.DataFrame()
     cci_error = None
 
-    st.markdown("### Macro-context: CBS detailhandel & consumentenvertrouwen")
+    st.markdown("### Macro context: CBS retail & consumer confidence")
     st.caption(
-        "Regio-footfall- en omzet worden genormaliseerd op 100 = eerste maand met data. "
-        "CBS-detailhandelindex en consumentenvertrouwen worden ernaast gezet om de "
+        "Region footfall and revenue are normalized to 100 = first month with data. "
+        "CBS retail index and consumer confidence are shown alongside to "
         "macro development to compare."
     )
 
@@ -1165,7 +1165,7 @@ def main():
             reg_foot = region_month.rename(columns={"month": "date"})[
                 ["date", "region_footfall_index"]
             ].copy()
-            reg_foot["series"] = "Regio footfall-index"
+            reg_foot["series"] = "Region footfall index"
             reg_foot = reg_foot.rename(columns={"region_footfall_index": "value"})
             chart_lines.append(reg_foot)
 
@@ -1174,7 +1174,7 @@ def main():
             reg_turn = region_month.rename(columns={"month": "date"})[
                 ["date", "region_turnover_index"]
             ].copy()
-            reg_turn["series"] = "Regio omzet-index"
+            reg_turn["series"] = "Region revenue index"
             reg_turn = reg_turn.rename(columns={"region_turnover_index": "value"})
             chart_lines.append(reg_turn)
 
@@ -1192,22 +1192,22 @@ def main():
                 alt.Chart(chart_all)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X("date:T", title="Maand"),
-                    y=alt.Y("value:Q", title="Index (100 = eerste maand met data)"),
+                    x=alt.X("date:T", title="Month"),
+                    y=alt.Y("value:Q", title="Index (100 = first month with data)"),
                     color=alt.Color(
                         "series:N",
                         title="Reeks",
                         scale=alt.Scale(
                             domain=[
-                                "Regio footfall-index",
-                                "Regio omzet-index",
+                                "Region footfall index",
+                                "Region revenue index",
                                 "CBS detailhandelindex",
                             ],
                             range=[PFM_PURPLE, PFM_RED, PFM_GREY],
                         ),
                     ),
                     tooltip=[
-                        alt.Tooltip("date:T", title="Maand"),
+                        alt.Tooltip("date:T", title="Month"),
                         alt.Tooltip("series:N", title="Reeks"),
                         alt.Tooltip("value:Q", title="Index", format=".1f"),
                     ],
@@ -1217,16 +1217,16 @@ def main():
 
             st.altair_chart(macro_chart, use_container_width=True)
             st.caption(
-                "Alle reeksen zijn herleid naar index 100 in de eerste maand met data. "
+                "All series are normalized to index 100 in the first month with data. "
                 "This way you compare the relative development of region footfall, revenue, and "
-                "indien beschikbaar, de CBS-detailhandelindex."
+                "if available, the CBS retail index."
             )
             macro_chart_shown = True
     except Exception:
         macro_chart_shown = macro_chart_shown or False
 
     # --- 4) Consumentenvertrouwen vs regionale performance ---
-    st.markdown("### Consumentenvertrouwen vs regionale performance")
+    st.markdown("### Consumer confidence vs. regional performance")
 
     try:
         cci_series = get_cci_series(months_back=24)
@@ -1261,7 +1261,7 @@ def main():
         lines_cc = []
 
         cci_line = cci_df[["date", "cci_index"]].copy()
-        cci_line["series"] = "Consumentenvertrouwen-index"
+        cci_line["series"] = "Consumer confidence index"
         cci_line = cci_line.rename(columns={"cci_index": "value"})
         lines_cc.append(cci_line)
 
@@ -1269,7 +1269,7 @@ def main():
             reg_foot2 = region_month.rename(columns={"month": "date"})[
                 ["date", "region_footfall_index"]
             ].copy()
-            reg_foot2["series"] = "Regio footfall-index"
+            reg_foot2["series"] = "Region footfall index"
             reg_foot2 = reg_foot2.rename(columns={"region_footfall_index": "value"})
             lines_cc.append(reg_foot2)
 
@@ -1277,7 +1277,7 @@ def main():
             reg_turn2 = region_month.rename(columns={"month": "date"})[
                 ["date", "region_turnover_index"]
             ].copy()
-            reg_turn2["series"] = "Regio omzet-index"
+            reg_turn2["series"] = "Region revenue index"
             reg_turn2 = reg_turn2.rename(columns={"region_turnover_index": "value"})
             lines_cc.append(reg_turn2)
 
@@ -1285,22 +1285,22 @@ def main():
             alt.Chart(pd.concat(lines_cc, ignore_index=True))
             .mark_line(point=True)
             .encode(
-                x=alt.X("date:T", title="Maand"),
-                y=alt.Y("value:Q", title="Index (100 = eerste maand met data)"),
+                x=alt.X("date:T", title="Month"),
+                y=alt.Y("value:Q", title="Index (100 = first month with data)"),
                 color=alt.Color(
                     "series:N",
                     title="Reeks",
                     scale=alt.Scale(
                         domain=[
-                            "Consumentenvertrouwen-index",
-                            "Regio footfall-index",
-                            "Regio omzet-index",
+                            "Consumer confidence index",
+                            "Region footfall index",
+                            "Region revenue index",
                         ],
                         range=[PFM_RED, PFM_PURPLE, PFM_GREY],
                     ),
                 ),
                 tooltip=[
-                    alt.Tooltip("date:T", title="Maand"),
+                    alt.Tooltip("date:T", title="Month"),
                     alt.Tooltip("series:N", title="Reeks"),
                     alt.Tooltip("value:Q", title="Index", format=".1f"),
                 ],
@@ -1310,9 +1310,9 @@ def main():
 
         st.altair_chart(chart_cc, use_container_width=True)
         st.caption(
-            "Consumentenvertrouwen (CCI) en regionale footfall/omzet zijn hier alle drie "
-            "herleid naar 100 in de eerste maand met data. Zo zie je direct of de regio "
-            "harder of minder hard groeit dan het consumentenvertrouwen."
+            "Consumer confidence (CCI) and regional footfall/revenue are all three "
+            "normalized to 100 in the first month with data. This lets you see immediately if the region "
+            "is growing faster or slower than consumer confidence."
         )
     else:
         st.info(
@@ -1322,13 +1322,13 @@ def main():
     # -----------------------
     # Debug-sectie
     # -----------------------
-    with st.expander("🔧 Debug regio"):
+    with st.expander("🔧 Debug region"):
         st.write("Selected retailer:", selected_client)
         st.write(
             "Region mapping (subset):",
             region_shops[["id", "store_display", "region", "sqm_effective"]].head(),
         )
-        st.write("Shop IDs regio:", shop_ids)
+        st.write("Shop IDs region:", shop_ids)
         st.write("ALL shop IDs:", all_shop_ids)
         st.write("Periode:", start_period, "→", end_period)
         st.write("Store key column in df_all_raw:", store_key_col)

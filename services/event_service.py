@@ -11,7 +11,7 @@ DateInput = Union[pd.Series, pd.DatetimeIndex, Iterable]
 
 def _to_date_series(dates: DateInput) -> pd.Series:
     """
-    Converteer willekeurige input (list, Series, DatetimeIndex, ...) naar
+    Convert arbitrary input (list, Series, DatetimeIndex, ...) naar
     een nette pandas Series met genormaliseerde datums (zonder tijd).
     """
     # Alles eerst naar een list, dan naar Series
@@ -59,7 +59,7 @@ def build_event_flags_for_dates(
     country: str = "NL",
 ) -> pd.DataFrame:
     """
-    Bouw een eenvoudige event-feature set voor een reeks datums.
+    Build a simple event feature set voor een reeks datums.
 
     Output DataFrame met kolommen:
     - date

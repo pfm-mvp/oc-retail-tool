@@ -160,14 +160,14 @@ def compute_traffic_vitality(
     elif pd.notna(yoy_ratio):
         composite = yoy_ratio
     else:
-        return np.nan, np.nan, "Te weinig data voor traffic vitaliteit."
+        return np.nan, np.nan, "Not enough data for traffic vitality."
 
     score = _ratio_to_score(composite, floor=30, cap=200)
 
     # Reason
     parts = []
     if pd.notna(idx):
-        parts.append(f"traffic index {idx:.0f} vs regio (100=gemiddeld)")
+        parts.append(f"traffic index {idx:.0f} vs region (100=average)")
     if pd.notna(yoy_ratio):
         trend = "stijgend" if yoy_ratio > 105 else "dalend" if yoy_ratio < 95 else "stabiel"
         parts.append(f"YoY trend {trend} ({yoy_ratio:.0f}%)")
@@ -336,23 +336,23 @@ def generate_action_hint(result: HealthScoreResult) -> str:
     # Find weakest pillar(s)
     weakest = sorted_pillars[0]
     if pd.isna(weakest.score):
-        return "Voldoende data ontbreekt voor actieve aanbeveling."
+        return "Insufficient data for an active recommendation."
 
     hints = {
-        "traffic_vitality": "Meer instroom en zichtbaarheid nodig — overweeg lokale marketing of locatie-optimalisatie.",
+        "traffic_vitality": "More footfall and visibility needed — consider local marketing or location optimization.",
         "conversion_power": "Visitors not buying enough — focus on ATV, upselling and store experience.",
-        "space_efficiency": "Ruimte wordt niet optimaal benut — heroverweeg plattegrond, assortiment en prijsstrategie.",
+        "space_efficiency": "Space not used optimally — reconsider layout, assortment and pricing strategy.",
         "customer_value": "Spend per visitor lags behind — improve product presentation and customer experience.",
-        "data_trust": "Data betrouwbaarheid is een risico — controleer sensoren en data-kwaliteit.",
+        "data_trust": "Data reliability is a risk — check sensors and data quality.",
     }
 
     hint = hints.get(weakest.key, "")
 
     # If health score is critical, add urgency
     if result.health_score < 45:
-        hint = "⚠️ Structurele ingreep nodig. " + hint
+        hint = "⚠️ Structural intervention needed. " + hint
     elif result.health_score < 60:
-        hint = "📌 Gerichte actie aanbevolen. " + hint
+        hint = "📌 Targeted action recommended. " + hint
 
     return hint
 
