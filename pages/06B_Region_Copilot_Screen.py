@@ -566,11 +566,11 @@ def main():
     try:
         locations_df = get_locations_by_company(company_id)
     except requests.exceptions.RequestException as e:
-        st.error(f"Fout bij ophalen van winkels uit FastAPI: {e}")
+        st.error(f"Error fetching stores from FastAPI: {e}")
         return
 
     if locations_df.empty:
-        st.error("Geen winkels gevonden voor deze retailer.")
+        st.error("No stores found for this retailer.")
         return
 
     region_map = load_region_mapping()
@@ -581,7 +581,7 @@ def main():
     locations_df["id"] = pd.to_numeric(locations_df["id"], errors="coerce").astype("Int64")
     merged = locations_df.merge(region_map, left_on="id", right_on="shop_id", how="inner")
     if merged.empty:
-        st.warning("Er zijn geen winkels met een regio-mapping voor deze retailer.")
+        st.warning("No stores with region mapping found for this retailer.")
         return
 
     # store display name
@@ -603,7 +603,7 @@ def main():
         run_btn = st.button("Analyseer", type="primary")
 
     if not run_btn:
-        st.info("Selecteer retailer/regio/periode en klik op **Analyseer**.")
+        st.info("Select retailer/region/period and click **Analyze**.")
         return
 
     # ✅ use PeriodDef from helpers_periods
@@ -617,7 +617,7 @@ def main():
     region_shops = merged[merged["region"] == region_choice].copy()
     region_shop_ids = region_shops["id"].dropna().astype(int).unique().tolist()
     if not region_shop_ids:
-        st.warning(f"Geen winkels gevonden voor regio '{region_choice}'.")
+        st.warning(f"No stores found for region '{region_choice}'.")
         return
 
     all_shop_ids = merged["id"].dropna().astype(int).unique().tolist()
@@ -639,7 +639,7 @@ def main():
         date_to=end_period,
     )
 
-    with st.spinner("Data ophalen via FastAPI..."):
+    with st.spinner("Fetching data via FastAPI..."):
         try:
             resp = fetch_report(
                 cfg=cfg,
@@ -737,7 +737,7 @@ def main():
 
     df_region_daily = df_daily_store[df_daily_store["region"] == region_choice].copy()
     if df_region_daily.empty:
-        st.warning("Geen data voor geselecteerde regio binnen de periode.")
+        st.warning("No data for selected region within the period.")
         with st.expander("🔧 Debug join coverage"):
             st.write("Region choice:", region_choice)
             st.write("Unique regions in df_daily_store:", sorted(df_daily_store["region"].dropna().unique().tolist()))
@@ -840,9 +840,9 @@ def main():
     # KPI row
     k1, k2, k3, k4 = st.columns([1, 1, 1, 1])
     with k1:
-        kpi_card("Footfall", fmt_int(foot_total), "Regio · periode")
+        kpi_card("Footfall", fmt_int(foot_total), "Region · period")
     with k2:
-        kpi_card("Omzet", fmt_eur(turn_total), "Regio · periode")
+        kpi_card("Omzet", fmt_eur(turn_total), "Region · period")
     with k3:
         kpi_card("SPV", (fmt_eur_2(spv_avg) if not pd.isna(spv_avg) else "-"), "Omzet / bezoeker (gewogen)")
     with k4:
@@ -857,7 +857,7 @@ def main():
         st.markdown('<div class="panel"><div class="panel-title">Weekly trend — Store vs Street + Capture</div>', unsafe_allow_html=True)
 
         if capture_weekly.empty:
-            st.info("Geen matchende Pathzz-weekdata gevonden voor deze regio/periode.")
+            st.info("No matching Pathzz weekly data found for this region/period.")
         else:
             chart_df = capture_weekly[["week_start", "footfall", "street_footfall", "turnover", "capture_rate"]].copy()
             chart_df = chart_df.sort_values("week_start")
@@ -917,12 +917,12 @@ def main():
         st.markdown("</div>", unsafe_allow_html=True)
 
     with r2_b:
-        st.markdown('<div class="panel"><div class="panel-title">Regio vergelijking — RVI (SVI gemiddeld)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel"><div class="panel-title">Region comparison — RVI (SVI average)</div>', unsafe_allow_html=True)
 
         if not compare_all_regions:
             st.info("Zet ‘Vergelijk met andere regio’s’ aan om alle regio’s te tonen.")
         elif region_scores.empty or region_scores["region"].nunique() <= 1:
-            st.info("Nog onvoldoende regio’s of data om te vergelijken.")
+            st.info("Not enough region’s or data to compare.")
         else:
             chart_regions = region_scores.copy()
             chart_regions["is_selected"] = chart_regions["region"] == region_choice
@@ -964,7 +964,7 @@ def main():
     r3_left, r3_right = st.columns([1.45, 1.15])
 
     with r3_left:
-        st.markdown('<div class="panel"><div class="panel-title">Store Vitality ranking — geselecteerde regio</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel"><div class="panel-title">Store Vitality ranking — selected region</div>', unsafe_allow_html=True)
 
         if svi_region.empty:
             st.info("Geen stores in deze regio met SVI (of regio-koppeling ontbreekt).")
@@ -1047,7 +1047,7 @@ def main():
                 total_top5_year = float(topn["profit_potential_year"].head(5).sum())
 
                 if not pd.isna(total_top5_period):
-                    st.markdown(f"**Top 5 potentie (in gekozen periode):** {fmt_eur(total_top5_period)}")
+                    st.markdown(f"**Top 5 potential (in selected period):** {fmt_eur(total_top5_period)}")
                 st.markdown(f"**Indicatief geannualiseerd:** {fmt_eur(total_top5_year)} / jaar")
                 st.caption(
                     "Let op: dit is geen ‘extra omzet gegarandeerd’, maar een indicatie van upside als onderliggende drivers structureel verbeteren (SVI/benchmark)."
@@ -1055,7 +1055,7 @@ def main():
 
                 st.caption("Hoe dit wordt berekend:")
                 if (topn.get("opportunity_driver") == "SVI profit potential").any():
-                    st.caption("• Primair: `profit_potential_period` uit Store Vitality (SVI) → geannualiseerd voor vergelijkbaarheid.")
+                    st.caption("• Primary: `profit_potential_period` from Store Vitality (SVI) → annualized for comparability.")
                 else:
                     st.caption("• Fallback: uplift naar benchmark **SPV (top quartile)** × **footfall** → geannualiseerd.")
 
@@ -1067,12 +1067,12 @@ def main():
     if show_macro:
         st.markdown("## Macro-context (optioneel)")
 
-        # 1 jaar terug vanaf START van de gekozen periode t/m einddatum
+        # 1 year back from START of selected period through end date
         macro_start = start_period - timedelta(days=365)
         macro_end = end_period
 
         st.caption(
-            f"Macro toont: {macro_start} → {macro_end} (1 jaar terug vanaf start van je periode t/m einddatum)."
+            f"Macro toont: {macro_start} → {macro_end} (1 year back from start of your period through end date)."
         )
 
         # --- 1) EXTRA FETCH: haal regio-shopdata op voor macro window ---
@@ -1089,7 +1089,7 @@ def main():
         )
 
         resp_macro = None
-        with st.spinner("Macro data ophalen (regio footfall/omzet) ..."):
+        with st.spinner("Fetching macro data (region footfall/revenue) ..."):
             try:
                 resp_macro = fetch_report(
                     cfg=cfg,
@@ -1157,7 +1157,7 @@ def main():
             region_month["region_turnover_index"] = index_from_first_nonzero(region_month["region_turnover"])
             region_month["region_footfall_index"] = index_from_first_nonzero(region_month["region_footfall"])
 
-        # --- 2) CBS / CCI ophalen + filter op macro window ---
+        # --- 2) CBS / CCI fetching + filter on macro window ---
         months_back = int(((macro_end.year - macro_start.year) * 12 + (macro_end.month - macro_start.month)) + 6)
         months_back = max(60, months_back)   # altijd minimaal 60 maanden terug
         months_back = min(240, months_back)  # safety cap: 20 jaar

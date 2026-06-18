@@ -143,7 +143,7 @@ div.stButton > button {{
 }}
 
 /* ---------------- Optional: compact select labels ---------------- */
-/* (Laat dit staan: het voorkomt 'lege labelruimte' boven sommige selects) */
+/* (Leave this: it prevents 'empty label space' above some selects) */
 div[data-testid="stSelectbox"] label {{
   display: none !important;
   height: 0 !important;

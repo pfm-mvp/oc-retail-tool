@@ -24,7 +24,7 @@ def build_store_vitality(
     store_key_col: str,
 ) -> pd.DataFrame:
     """
-    Bouwt per winkel een Store Vitality Index (SVI, 0–100) + footfall/capture index
+    Builds per store a Store Vitality Index (SVI, 0–100) + footfall/capture index
     en omzetpotentieel.
 
     Verwacht:
@@ -34,12 +34,12 @@ def build_store_vitality(
         - turnover
         - sales_per_visitor (optioneel, mag NaN zijn)
         - sqm_effective (optioneel, mag NaN zijn)
-    - region_shops: mapping met per winkel:
+    - region_shops: mapping with per store:
         - id
         - store_display
         - sqm_effective (optioneel)
 
-    Returnt één rij per winkel met o.a.:
+    Returns one row per store including::
     - store_id
     - store_name
     - footfall, turnover, sales_per_visitor, sqm_effective
@@ -49,15 +49,15 @@ def build_store_vitality(
     - svi_score (0–100)
     - svi_status (tekst)
     - svi_icon (emoji)
-    - reason_short (korte toelichting)
-    - profit_potential_period (extra omzetpotentieel voor de geanalyseerde periode)
+    - reason_short (short explanation)
+    - profit_potential_period (extra revenue potential for the analyzed period)
     """
 
     if df_period is None or df_period.empty:
         return pd.DataFrame()
 
     # ---------------------------
-    # 1. Basis aggregatie per winkel
+    # 1. Base aggregation per store
     # ---------------------------
     group_cols = [store_key_col]
     agg = (
@@ -170,7 +170,7 @@ def build_store_vitality(
     # ---------------------------
     def classify(score: float):
         if pd.isna(score):
-            return "Onbekend", "⚪"
+            return "Unknown", "⚪"
         if score >= 75:
             return "High performance", "🟢"
         elif score >= 60:
@@ -225,22 +225,22 @@ def build_store_vitality(
                 )
             else:
                 reasons.append(
-                    "Meerdere KPI’s net onder regio; gericht plan op traffic én SPV gewenst."
+                    "Multiple KPIs just below regional benchmarks; targeted plan on traffic & SPV needed."
                 )
         else:
             if pm < 50 and pc < 50:
                 reasons.append(
-                    "Structureel onder regio op traffic én omzet – herijk formule, team en marketingmix."
+                    "Structurally below regional benchmarks on traffic & revenue – re-evaluate formula, team and marketing mix."
                 )
             else:
                 reasons.append(
-                    "Significante achterstand; plan nodig op traffic, conversie en m²-benutting."
+                    "Significant lag; plan needed for traffic, conversion and m² utilization."
                 )
 
     agg["reason_short"] = reasons
 
     # ---------------------------
-    # 7. Omzetpotentieel (periode)
+    # 7. Revenue potential (period)
     # ---------------------------
     median_tps = agg["turnover_per_sqm"].median(skipna=True)
     potentials = []

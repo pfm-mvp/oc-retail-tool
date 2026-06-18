@@ -59,7 +59,7 @@ def fetch_monthly_street_traffic(
     """
     Simpele wrapper voor de Copilot:
     - Negeert lat/lon/radius (we gebruiken 1 vaste CSV voor de pilot)
-    - Filtert de Pathzz-weken op de opgegeven periode
+    - Filters Pathzz weeks on the specified period
     - Aggregateert naar maandniveau → kolommen: ['month', 'street_footfall']
     """
     df = _load_pathzz_weekly(csv_path)

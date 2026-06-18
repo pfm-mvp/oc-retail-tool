@@ -64,7 +64,7 @@ def friendly_error(js: dict, period: str | None = None) -> bool:
         msg = f"API call failed — status: {js.get('status')} | _url: {js.get('_url')} | _method: {js.get('_method')} | exception: {js.get('exception')}"
         st.error(msg)
         if period:
-            st.caption(f"Tip: controleer verplichte params voor periode **{period}** (bijv. period_step/step/weather).")
+            st.caption(f"Tip: check required params for period **{period}** (e.g. period_step/step/weather).")
         if "_body" in js and js["_body"]:
             with st.expander("Response body (preview)"):
                 st.code(js["_body"])

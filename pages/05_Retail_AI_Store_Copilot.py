@@ -75,7 +75,7 @@ except Exception:
         df["week_start"] = df["week"].apply(_parse_week_start)
         df = df.dropna(subset=["week_start"])
 
-        # Filter op aangevraagde periode
+        # Filter on requested period
         start = pd.to_datetime(start_date)
         end = pd.to_datetime(end_date)
         df = df[(df["week_start"] >= start) & (df["week_start"] <= end)]
@@ -192,7 +192,7 @@ def get_locations_by_company(company_id: int) -> pd.DataFrame:
 
     # Als alles faalt → laat ReadTimeout omhoog bubbelen (main() vangt 'm af)
     raise requests.exceptions.ReadTimeout(
-        f"Timeout bij ophalen locaties voor company {company_id} via {url}"
+        f"Timeout fetching locations voor company {company_id} via {url}"
     ) from last_err
 
 
@@ -397,7 +397,7 @@ def build_ai_store_coach_text(
             if row.get("is_december_trade", 0) == 1:
                 labels.append("decemberpiek")
             if row.get("is_summer_sale", 0) == 1:
-                labels.append("summer sale-periode")
+                labels.append("summer sale period")
             if row.get("is_school_holiday", 0) == 1:
                 labels.append("schoolvakantie")
             if labels:
@@ -436,10 +436,10 @@ Gegevens:
 Geef in maximaal 5 bullets concrete acties voor de storemanager:
 - focus op personeelsplanning rond drukke dagen,
 - benutten van piek-momenten (events/feestdagen),
-- ideeën voor conversie/SPV-verhoging,
+- ideas for conversion/SPV improvement,
 - 1 bullet over hoe hij/zij dit aan het regioteam kan terugkoppelen.
 
-Schrijf in het Nederlands, praktisch en to-the-point.
+Write in English, practical and to-the-point.
 """
         try:
             completion = _OPENAI_CLIENT.chat.completions.create(
@@ -456,14 +456,14 @@ Schrijf in het Nederlands, praktisch en to-the-point.
             return (
                 "AI Store Coach kon niet worden aangeroepen. "
                 "Basisinzicht: plan extra sterk op de drukste dagen, "
-                "test één verbetering in conversie (bijv. begroetingsscript of kassaproces) "
+                "test one improvement in conversion (e.g. greeting script or checkout process) "
                 "en zorg dat je dit kort rapporteert aan je regiomanager."
             )
 
     # Rule-based fallback
     tips = [
         "• Bekijk de 2–3 drukste forecast-dagen en zorg daar voor extra bezetting aan de front-of-house.",
-        "• Plan minimaal één test om de conversie te verhogen (bijv. actief begroeten of betere routing rond de bestverkopende categorie).",
+        "• Plan at least one test to increase conversion (e.g. active greeting or better routing around the best-selling category).",
         "• Gebruik de forecast-omzet als richtlijn voor je dagtargets en bespreek dit kort in de dagstart.",
         "• Kijk in de grafiek naar dagen waar footfall hoog is maar omzet of SPV achterblijft: dat zijn je snelste verbeterkansen.",
         "• Deel een korte samenvatting (1 slide of 3 bullets) met je regiomanager over wat je de komende 2 weken gaat testen.",
@@ -513,8 +513,8 @@ def build_store_ai_coach_text(
         )
     elif fut_foot > 0:
         foot_msg = (
-            f"- **Footfall-trend**: forecast laat ongeveer {fmt_int(fut_foot)} bezoekers zien "
-            f"voor de komende 14 dagen, maar er is te weinig historie om dit goed te vergelijken.\n"
+            f"- **Footfall trend**: forecast shows approximately {fmt_int(fut_foot)} visitors "
+            f"for the next 14 days, but there is too little history to compare properly.\n"
         )
     else:
         foot_msg = (
@@ -537,7 +537,7 @@ def build_store_ai_coach_text(
     elif fut_turn > 0:
         omzet_msg = (
             f"- **Omzet-verwachting**: forecast omzet is ongeveer {fmt_eur(fut_turn)}, "
-            "maar er is te weinig historie om dit te spiegelen aan een vorige periode.\n"
+            "but there is too little history to compare with a previous period.\n"
         )
     else:
         omzet_msg = (
@@ -555,7 +555,7 @@ def build_store_ai_coach_text(
             f"{fmt_eur(extra_turn_spv)} extra omzet op bovenop de forecast.\n"
         )
 
-    # 2b) Scenario: conversie +1 procentpunt (alleen als we conv & SPV hebben)
+    # 2b) Scenario: conversion +1 percentage point (only if we have conv & SPV)
     if fut_foot > 0 and has_spv_cur and has_conv_cur:
         conv_baseline = float(conv_cur)
         spv_baseline = float(spv_cur)
@@ -566,7 +566,7 @@ def build_store_ai_coach_text(
         extra_turn_conv = extra_trans * atv_est
 
         scenario_msg += (
-            f"- **Scenario conversie +1 pp**: met een stijging van de conversie "
+            f"- **Scenario conversion +1 pp**: with a conversion increase of "
             f"van {conv_baseline:.1f}% naar {conv_new:.1f}% genereer je ongeveer "
             f"{fmt_int(extra_trans)} extra transacties en ~{fmt_eur(extra_turn_conv)} extra omzet "
             f"in de komende 14 dagen (bij gelijkblijvend bonbedrag).\n"
@@ -605,9 +605,9 @@ def build_store_ai_coach_text(
 
     # 4) Samenvattende actie
     action_msg = (
-        "- **Focus voor deze periode**: combineer een scherpe personeelsplanning op drukke dagen "
-        "met gerichte acties op SPV en conversie (bijvoorbeeld actieve begroeting, bundelaanbiedingen "
-        "en duidelijke promoties bij de topcategorieën). Koppel na 2 weken kort terug wat het effect was "
+        "- **Focus for this period**: combine sharp staff planning on busy days "
+        "with targeted actions on SPV and conversion (e.g. active greeting, bundle offers "
+        "and clear promotions on top categories). Check back after 2 weeks for the effect "
         "op omzet vs. forecast.\n"
     )
 
@@ -634,28 +634,28 @@ def main():
         axis=1,
     )
 
-    st.sidebar.header("Selecteer retailer & winkel")
+    st.sidebar.header("Select retailer & store")
 
     client_label = st.sidebar.selectbox("Retailer", clients_df["label"].tolist())
     selected_client = clients_df[clients_df["label"] == client_label].iloc[0].to_dict()
     company_id = int(selected_client["company_id"])
 
-    # --- Winkels ophalen via FastAPI ---
+    # --- Fetching stores via FastAPI ---
     try:
         locations_df = get_locations_by_company(company_id)
     except requests.exceptions.ReadTimeout:
         st.error(
             "FastAPI locatie-endpoint reageert te traag (timeout). "
-            "Dit gebeurt vaak bij een cold start of als er veel winkels zijn. "
+            "This often happens on a cold start or when there are many stores. "
             "Klik nog eens op **Analyseer** of probeer straks opnieuw."
         )
         st.stop()
     except requests.exceptions.RequestException as e:
-        st.error(f"Fout bij ophalen van winkels uit FastAPI: {e}")
+        st.error(f"Error fetching stores from FastAPI: {e}")
         st.stop()
 
     if locations_df.empty:
-        st.error("Geen winkels gevonden voor deze retailer.")
+        st.error("No stores found for this retailer.")
         return
 
     if "name" not in locations_df.columns:
@@ -674,7 +674,7 @@ def main():
     lat = float(shop_row.get("lat", 0) or 0)
     lon = float(shop_row.get("lon", 0) or 0)
 
-    # --- Periode selectie (huidige vs vorige periode) ---
+    # --- Period selection (current vs previous period) ---
     period_choice = st.sidebar.selectbox(
         "Periode",
         [
@@ -728,7 +728,7 @@ def main():
         end = next_start - timedelta(days=1)
         return start, end
 
-    # Bereken huidige + vorige periode
+    # Calculate current + previous period
     if period_choice == "Deze week":
         start_cur, end_cur = get_week_range(today)
         start_prev, end_prev = start_cur - timedelta(days=7), start_cur - timedelta(days=1)
@@ -806,11 +806,11 @@ def main():
     run_btn = st.sidebar.button("Analyseer", type="primary")
 
     if not run_btn:
-        st.info("Selecteer retailer & winkel, kies een periode en klik op **Analyseer**.")
+        st.info("Select retailer & store, choose a period and click **Analyze**.")
         return
 
-    # --- Data ophalen uit FastAPI ---
-    with st.spinner("Data ophalen uit Storescan / FastAPI..."):
+    # --- Data fetching from FastAPI ---
+    with st.spinner("Fetching data from Storescan / FastAPI..."):
         metric_map = {
             "count_in": "footfall",
             "turnover": "turnover",
@@ -831,7 +831,7 @@ def main():
         df_all_raw = df_all_raw.rename(columns=metric_map)
 
     if df_all_raw.empty:
-        st.warning("Geen data gevonden voor dit jaar voor deze winkel.")
+        st.warning("No data found for this year for this store.")
         return
 
     df_all_raw["date"] = pd.to_datetime(df_all_raw["date"], errors="coerce")
@@ -875,7 +875,7 @@ def main():
         # Bij API-issue gewoon terugvallen op dit jaar
         df_hist_raw = df_all_raw.copy()
 
-    # Slice naar huidige + vorige periode
+    # Slice to current + previous period
     start_cur_ts = pd.Timestamp(start_cur)
     end_cur_ts = pd.Timestamp(end_cur)
     start_prev_ts = pd.Timestamp(start_prev)
@@ -892,7 +892,7 @@ def main():
     ].copy()
 
     if df_cur.empty and df_prev.empty:
-        st.warning("Geen data gevonden in de gekozen periodes.")
+        st.warning("No data found in the selected periods.")
         return
 
     # KPI's berekenen op dag-niveau
@@ -929,7 +929,7 @@ def main():
     avg_capture_prev = None
 
     if not pathzz_weekly.empty:
-        # 1) Store weekly totals (één winkel)
+        # 1) Store weekly totals (single store)
         df_range = df_all_raw[
             (df_all_raw["date"] >= start_prev_ts)
             & (df_all_raw["date"] <= end_cur_ts)
@@ -970,7 +970,7 @@ def main():
                 "vorige",
             )
 
-            # 6) Gemiddelde capture per periode
+            # 6) Average capture per period
             avg_capture_cur = capture_weekly.loc[
                 capture_weekly["period"] == "huidige", "capture_rate"
             ].mean()
@@ -979,12 +979,12 @@ def main():
                 capture_weekly["period"] == "vorige", "capture_rate"
             ].mean()
 
-    # --- CBS context (data ophalen) ---
+    # --- CBS context (data fetching) ---
     cbs_stats = {}
     if postcode4:
         cbs_stats = get_cbs_stats_for_postcode4(postcode4)
 
-    # --- KPI-cards met vergelijking vorige periode ---
+    # --- KPI cards with comparison to previous period ---
     st.subheader(f"{selected_client['brand']} – {shop_row['name']}")
 
     foot_cur = df_cur["footfall"].sum() if "footfall" in df_cur.columns else 0
@@ -1017,9 +1017,9 @@ def main():
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Footfall (periode)", fmt_int(foot_cur), delta=foot_delta)
+        st.metric("Footfall (period)", fmt_int(foot_cur), delta=foot_delta)
     with col2:
-        st.metric("Omzet (periode)", fmt_eur(turn_cur), delta=turn_delta)
+        st.metric("Revenue (period)", fmt_eur(turn_cur), delta=turn_delta)
     with col3:
         if "sales_per_visitor" in df_cur.columns:
             value = f"€ {spv_cur:.2f}".replace(".", ",") if pd.notna(spv_cur) else "-"
@@ -1036,13 +1036,13 @@ def main():
             )
         elif "conversion_rate" in df_cur.columns:
             st.metric(
-                "Gem. conversie",
+                "Avg. conversion",
                 fmt_pct(conv_cur) if pd.notna(conv_cur) else "-",
                 delta=conv_delta,
             )
 
-    # --- Weekly grafiek: straatdrukte vs winkeltraffic + omzet + capture rate ---
-    st.markdown("### Straatdrukte vs winkeltraffic (weekly demo)")
+    # --- Weekly chart: street traffic vs store traffic + revenue + capture rate ---
+    st.markdown("### Street traffic vs store traffic (weekly demo)")
 
     if not capture_weekly.empty:
         chart_df = capture_weekly[
@@ -1131,7 +1131,7 @@ def main():
 
         st.plotly_chart(fig_week, use_container_width=True)
     else:
-        st.info("Geen Pathzz-weekdata beschikbaar voor deze periode.")
+        st.info("No Pathzz weekly data available for this period.")
 
     # --- Dagelijkse grafiek ---
     st.markdown("### Dagelijkse footfall & omzet")
@@ -1453,8 +1453,8 @@ def main():
     # --- Debug ---
     with st.expander("🔧 Debug"):
         st.write("Periode keuze:", period_choice)
-        st.write("Huidige periode:", start_cur, "→", end_cur)
-        st.write("Vorige periode:", start_prev, "→", end_prev)
+        st.write("Current period:", start_cur, "→", end_cur)
+        st.write("Previous period:", start_prev, "→", end_prev)
         st.write("Shop row:", shop_row)
         st.write("Dagdata ALL (head):", df_all_raw.head())
         st.write("Dagdata (cur):", df_cur.head())

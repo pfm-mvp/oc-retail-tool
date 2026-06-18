@@ -10,7 +10,7 @@ def _load_pathzz_sample(csv_path: Path | None = None) -> pd.DataFrame:
     """
     Laadt de demo-Pathzz CSV en zet deze om naar een weekly dataframe.
 
-    - Kolom 'Week' heeft formaat 'YYYY-MM-DD To YYYY-MM-DD'
+    - Column 'Week' has format 'YYYY-MM-DD To YYYY-MM-DD'
     - Kolom 'Visits' gebruikt een punt als duizendtalscheiding (16.725 = 16725)
     """
     if csv_path is None:

@@ -20,13 +20,13 @@ def build_region_store_radar(
     cci_df: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """
-    Bouwt een samengestelde radar-index per winkel in de regio.
+    Builds a composite radar index per store in the region.
 
     Input:
-    - df_period: dagdata in geselecteerde periode (met kolommen:
+    - df_period: daily data in selected period (with columns:
         date, footfall, turnover, sales_per_visitor (optioneel), conversion_rate (optioneel))
-    - region_shops: mapping met per winkel o.a. id, store_display, sqm_effective
-    - store_key_col: kolomnaam in df_period die de winkel-id bevat
+    - region_shops: mapping with per store including id, store_display, sqm_effective
+    - store_key_col: column name in df_period containing the store id
     - capture_weekly: regioweekdata met capture_rate (optioneel, wordt alleen gebruikt als context)
     - cbs_retail_month: CBS retail index (optioneel)
     - cci_df: consumentenvertrouwen-index (optioneel)
@@ -37,9 +37,9 @@ def build_region_store_radar(
     - store_name
     - radar_score (0–200, ~100 = regio-median)
     - headline (tekst)
-    - short_reason (korte toelichting)
+    - short_reason (short explanation)
     - turnover, footfall, sales_per_visitor, turnover_per_sqm
-    - potential_period (extra omzet in periode als winkel op regiomedian per m² zit)
+    - potential_period (extra revenue in period if store reaches regional median per m²)
     - potential_annual (geannualiseerde potentie)
     """
 
@@ -62,7 +62,7 @@ def build_region_store_radar(
         period_days = 1
     annual_factor = 365.0 / period_days
 
-    # --- Aggregatie per winkel over de gekozen periode ---
+    # --- Aggregation per store over selected period ---
     agg_dict: dict[str, str] = {}
     if "footfall" in df.columns:
         agg_dict["footfall"] = "sum"
@@ -149,8 +149,8 @@ def build_region_store_radar(
     # --- Potentie-berekening (euro) ---
     # Kernprincipe:
     # - Als omzet per m² < regiomedian → er is structureel potentieel op m².
-    # - Potentieel (periode) = (median_tps - store_tps) * sqm_effective
-    # - Potentieel (jaar)    = potentieel_periode * annual_factor
+    # - Potential (period) = (median_tps - store_tps) * sqm_effective
+    # - Potential (year) = potential_period * annual_factor
     store_agg["potential_period"] = 0.0
 
     mask_pot = (
@@ -168,7 +168,7 @@ def build_region_store_radar(
 
     store_agg["potential_annual"] = store_agg["potential_period"] * annual_factor
 
-    # --- Status & toelichting ---
+    # --- Status & explanation ---
     # Kleurcode op radar_score en potentieel
     icons = []
     headlines = []
@@ -206,7 +206,7 @@ def build_region_store_radar(
         else:
             headline = "Gaat goed"
 
-        # Korte toelichting
+        # Short explanation
         parts = []
 
         # Omzet / m² / SPV
@@ -237,7 +237,7 @@ def build_region_store_radar(
 
         # Capture-context
         if avg_capture is not None and not np.isnan(avg_capture):
-            parts.append(f"Regio capture rate rond ~{avg_capture:.1f}% (straat → winkel)")
+            parts.append(f"Region capture rate around ~{avg_capture:.1f}% (street → store)")
 
         if not parts:
             short_reason = "Presteert ongeveer op regiogemiddelde."

@@ -46,7 +46,7 @@ def compute_opportunity_scores(df: pd.DataFrame) -> pd.DataFrame:
     """
     Minimalistische score:
     - traffic (count_in) + turnover: positief
-    - conversie + SPV: negatief (lage conv/spv => meer upside)
+    - conversion + SPV: negative (low conv/spv => more upside)
     """
     work = df.copy()
 

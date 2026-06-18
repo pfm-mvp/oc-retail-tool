@@ -10,7 +10,7 @@ def _normalize(raw: Dict[int, Any]) -> Dict[int, Dict[str, Any]]:
             name = meta.get("name")
             region = meta.get("region", "ALL")
         else:
-            # oud formaat: meta is een string met de naam
+            # old format: meta is a string with the name
             name = str(meta)
             region = "ALL"
         if not name:

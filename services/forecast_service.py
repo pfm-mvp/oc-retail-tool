@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-# Pro-model support (LightGBM). Als dit niet geïnstalleerd is,
+# Pro-model support (LightGBM). If not installed,
 # valt de pro-forecast automatisch terug op de simpele variant.
 try:
     import lightgbm as lgb  # type: ignore
@@ -157,9 +157,9 @@ def build_pro_footfall_turnover_forecast(
     Pro-forecast met:
     - LightGBM (als beschikbaar)
     - Features: dow, maand, dag, weekend, lags & rolling means
-    - Optioneel: event-flags (bijv. feestdagen, vakanties, sale-periodes)
+    - Optional: event flags (e.g. holidays, vacations, sale periods)
 
-    Als LightGBM niet beschikbaar is of er te weinig historie is:
+    If LightGBM is unavailable or there is too little history:
     -> automatische fallback naar build_simple_footfall_turnover_forecast(...),
        met 'used_simple_fallback' = True.
 
