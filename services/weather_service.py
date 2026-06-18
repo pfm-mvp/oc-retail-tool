@@ -250,7 +250,7 @@ def build_simple_footfall_turnover_forecast(
     fut_foot = fc["footfall_forecast"].sum()
     fut_turn = fc["turnover_forecast"].sum()
 
-    # Historiek voor grafiek: laatste 28 dagen
+    # History for chart: last 28 days
     hist_recent = df[df["date"] >= (last_date - pd.Timedelta(days=27))].copy()
 
     return {
@@ -551,7 +551,7 @@ def build_pro_footfall_turnover_forecast(
     fut_foot = fc["footfall_forecast"].sum()
     fut_turn = fc["turnover_forecast"].sum()
 
-    # Historiek voor grafiek: laatste 28 dagen
+    # History for chart: last 28 days
     hist_recent = df[df["date"] >= (last_date - pd.Timedelta(days=27))].copy()
 
     return {

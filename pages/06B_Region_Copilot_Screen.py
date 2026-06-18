@@ -1050,7 +1050,7 @@ def main():
                     st.markdown(f"**Top 5 potential (in selected period):** {fmt_eur(total_top5_period)}")
                 st.markdown(f"**Indicative annualized:** {fmt_eur(total_top5_year)} / year")
                 st.caption(
-                    "Let op: dit is geen ‘extra omzet gegarandeerd’, maar een indicatie van upside als onderliggende drivers structureel verbeteren (SVI/benchmark)."
+                    "Note: this is not guaranteed extra revenue, but an indication of upside if underlying drivers structurally improve (SVI/benchmark)."
                 )
 
                 st.caption("How this is calculated:")
@@ -1385,14 +1385,14 @@ def main():
         if not cbs_retail_month.empty and "cbs_retail_index" in cbs_retail_month.columns:
             macro_df_cbs = cbs_retail_month[["date", "cbs_retail_index"]].copy()
             macro_df_cbs["value"] = pd.to_numeric(macro_df_cbs["cbs_retail_index"], errors="coerce")
-            macro_df_cbs["series"] = "CBS detailhandelindex"
+            macro_df_cbs["series"] = "CBS retail index"
             macro_df_cbs = macro_df_cbs[["date", "series", "value"]].dropna()
 
         macro_df_cci = pd.DataFrame()
         if not cci_df.empty and "cci_index" in cci_df.columns:
             macro_df_cci = cci_df[["date", "cci_index"]].copy()
             macro_df_cci["value"] = pd.to_numeric(macro_df_cci["cci_index"], errors="coerce")
-            macro_df_cci["series"] = "Consumentenvertrouwen (CCI)"
+            macro_df_cci["series"] = "Consumer confidence (CCI)"
             macro_df_cci = macro_df_cci[["date", "series", "value"]].dropna()
 
         macro_col1, macro_col2 = st.columns(2)
@@ -1400,7 +1400,7 @@ def main():
             _macro_chart_dual(
                 region_month_df=region_month,
                 macro_df=macro_df_cbs,
-                macro_series_name="CBS detailhandelindex",
+                macro_series_name="CBS retail index",
                 title="CBS retail index vs Region",
                 macro_label="CBS index (100 = start)",
             )
@@ -1408,7 +1408,7 @@ def main():
             _macro_chart_dual(
                 region_month_df=region_month,
                 macro_df=macro_df_cci,
-                macro_series_name="Consumentenvertrouwen (CCI)",
+                macro_series_name="Consumer confidence (CCI)",
                 title="Consumer confidence (CCI) vs Region",
                 macro_label="CCI index (100 = start)",
             )

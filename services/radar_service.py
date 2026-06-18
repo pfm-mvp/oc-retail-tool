@@ -104,7 +104,7 @@ def build_region_store_radar(
         store_agg.get("sqm_effective", np.nan), errors="coerce"
     )
 
-    # Omzet per m²
+    # Revenue per m²
     if "turnover" in store_agg.columns:
         store_agg["turnover_per_sqm"] = np.where(
             (store_agg["sqm_effective"] > 0) & (~store_agg["sqm_effective"].isna()),
@@ -132,7 +132,7 @@ def build_region_store_radar(
     store_agg["spv_index"] = _rel_index(store_agg["sales_per_visitor"], med_spv)
     store_agg["sqm_index"] = _rel_index(store_agg["turnover_per_sqm"], med_tps)
 
-    # --- Radar-score: samengestelde index ---
+    # --- Radar score: composite index ---
     # We nemen 4 dimensies:
     # - omzet
     # - footfall
@@ -146,7 +146,7 @@ def build_region_store_radar(
 
     store_agg["radar_score"] = store_agg[idx_cols].mean(axis=1, skipna=True)
 
-    # --- Potentie-berekening (euro) ---
+    # --- Potential calculatiog (euro) ---
     # Kernprincipe:
     # - Als omzet per m² < regiomedian → er is structureel potentieel op m².
     # - Potential (period) = (median_tps - store_tps) * sqm_effective

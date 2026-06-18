@@ -19,7 +19,7 @@ def _fetch_typed_dataset(dataset: str, top: int = 5000) -> List[Dict]:
 
 def get_cci_series(months_back: int = 24) -> List[Dict]:
     """
-    Haalt consumentenvertrouwen (CCI) op uit dataset 83693NED.
+    Fetches consumer confidence (CCI) from dataset 83693NED.
 
     Return:
         [
@@ -39,7 +39,7 @@ def get_cci_series(months_back: int = 24) -> List[Dict]:
         if not period_code:
             continue
 
-        val = r.get("Consumentenvertrouwen_1")
+        val = r.get("Consumer_confidence_1")
         try:
             v = float(val)
         except (TypeError, ValueError):

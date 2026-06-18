@@ -75,10 +75,10 @@ def fmt_int(x: float) -> str:
 @st.cache_data(ttl=600)
 def load_region_mapping(path: str = "data/regions.csv") -> pd.DataFrame:
     """
-    Verwacht een CSV met minimaal:
+    Expects a CSV with at minimum:
     shop_id;region
 
-    Optioneel:
+    Optional:
     - sqm_override  (float)
     - store_label   (display name per store)
     """
@@ -158,7 +158,7 @@ def get_report(
 @st.cache_data(ttl=600)
 def fetch_region_street_traffic(region: str, start_date, end_date) -> pd.DataFrame:
     """
-    Leest demo-straattraffic per regio uit data/pathzz_sample_weekly.csv
+    Reads demo street traffic per region from data/pathzz_sample_weekly.csv
 
     Verwachte CSV-structuur (opgeschoond):
     Region;Week;Visits
@@ -234,7 +234,7 @@ def fetch_region_street_traffic(region: str, start_date, end_date) -> pd.DataFra
 
 def index_from_first_nonzero(s: pd.Series) -> pd.Series:
     """
-    Maak een indexreeks (100 = eerste niet-nul waarde).
+    Create an index series (100 = first non-zero value).
     Values before that month become NaN, so the line starts from there.
 
     s: 1D Series met getallen (bijv. maand-omzet).
@@ -1092,7 +1092,7 @@ def main():
 
     macro_chart_shown = False
 
-    # --- 1) Regio: maandindex opbouwen (footfall & omzet) ---
+    # --- 1) Region: build monthly index (footfall & omzet) ---
     region_month = df_region.copy()
     region_month["month"] = region_month["date"].dt.to_period("M").dt.to_timestamp()
 
@@ -1181,7 +1181,7 @@ def main():
         # CBS-detailhandelindex (macro, indien data)
         if not cbs_retail_month.empty and "cbs_retail_index" in cbs_retail_month.columns:
             cbs_line = cbs_retail_month[["date", "cbs_retail_index"]].copy()
-            cbs_line["series"] = "CBS detailhandelindex"
+            cbs_line["series"] = "CBS retail index"
             cbs_line = cbs_line.rename(columns={"cbs_retail_index": "value"})
             chart_lines.append(cbs_line)
 
@@ -1201,7 +1201,7 @@ def main():
                             domain=[
                                 "Region footfall index",
                                 "Region revenue index",
-                                "CBS detailhandelindex",
+                                "CBS retail index",
                             ],
                             range=[PFM_PURPLE, PFM_RED, PFM_GREY],
                         ),
@@ -1225,7 +1225,7 @@ def main():
     except Exception:
         macro_chart_shown = macro_chart_shown or False
 
-    # --- 4) Consumentenvertrouwen vs regionale performance ---
+    # --- 4) Consumer confidence vs. regional performance ---
     st.markdown("### Consumer confidence vs. regional performance")
 
     try:

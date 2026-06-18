@@ -120,7 +120,7 @@ else:
 
 VISUALCROSSING_KEY = st.secrets.get("visualcrossing_key", None)
 
-# Maak de key ook beschikbaar als environment variable voor weather_service
+# Make the key also available as environment variable for weather_service
 if VISUALCROSSING_KEY:
     os.environ["VISUALCROSSING_API_KEY"] = VISUALCROSSING_KEY
 
@@ -425,7 +425,7 @@ def build_ai_store_coach_text(
     if event_lines:
         base_summary += "Important upcoming days:\n" + "\n".join(event_lines)
 
-    # OpenAI beschikbaar?
+    # OpenAI available?
     if _OPENAI_CLIENT:
         prompt = f"""
 Je bent een retail performance coach voor een filiaalmanager.
@@ -521,7 +521,7 @@ def build_store_ai_coach_text(
             "- **Footfall trend**: insufficient data for a reliable visitor forecast.\n"
         )
 
-    # 2) Omzet-gap & scenario's
+    # 2) Revenue gap & scenarios
     omzet_msg = ""
     scenario_msg = ""
 
@@ -647,7 +647,7 @@ def main():
         st.error(
             "FastAPI locatie-endpoint reageert te traag (timeout). "
             "This often happens on a cold start or when there are many stores. "
-            "Klik nog eens op **Analyseer** of probeer straks opnieuw."
+            "Click **Analyze** again or try again later."
         )
         st.stop()
     except requests.exceptions.RequestException as e:
@@ -679,13 +679,13 @@ def main():
         "Periode",
         [
             "This week",
-            "Laatste week",
+            "Last week",
             "This month",
             "Last month",
             "Dit kwartaal",
-            "Laatste kwartaal",
+            "Last quarter",
         ],
-        index=2,  # default: Deze maand
+        index=2,  # default: This month
     )
 
     today = datetime.today().date()
@@ -770,7 +770,7 @@ def main():
         prev_start_month = 3 * (prev_q - 1) + 1
         start_prev, end_prev = get_quarter_range(prev_y, prev_start_month)
 
-    else:  # "Laatste kwartaal"
+    else:  # "Last quarter"
         cur_q = (today.month - 1) // 3 + 1
         if cur_q == 1:
             cur_y, cur_q_eff = today.year - 1, 4
@@ -803,7 +803,7 @@ def main():
         index=0,
     )
 
-    run_btn = st.sidebar.button("Analyseer", type="primary")
+    run_btn = st.sidebar.button("Analyze", type="primary")
 
     if not run_btn:
         st.info("Select retailer & store, choose a period and click **Analyze**.")
@@ -1133,7 +1133,7 @@ def main():
     else:
         st.info("No Pathzz weekly data available for this period.")
 
-    # --- Dagelijkse grafiek ---
+    # --- Daily chart ---
     st.markdown("### Daily footfall & revenue")
     if "footfall" in df_cur.columns and "turnover" in df_cur.columns:
         daily_df = df_cur[["date", "footfall", "turnover"]].copy()

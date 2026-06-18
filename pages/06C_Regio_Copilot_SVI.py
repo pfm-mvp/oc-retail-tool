@@ -787,7 +787,7 @@ def plot_macro_panel(df_region_daily: pd.DataFrame, macro_start, macro_end):
         return (s / base) * 100.0
 
     region_m["Region footfall-index"] = _idx(region_m["footfall"])
-    region_m["Region omzet-index"] = _idx(region_m["turnover"])
+    region_m["Region revenue index"] = _idx(region_m["turnover"])
 
     region_m = region_m.dropna(subset=["month"]).copy()
     if region_m.empty:
@@ -856,13 +856,13 @@ def plot_macro_panel(df_region_daily: pd.DataFrame, macro_start, macro_end):
 
     reg_long = region_m.melt(
         id_vars=["month"],
-        value_vars=["Region footfall-index", "Region omzet-index"],
+        value_vars=["Region footfall-index", "Region revenue index"],
         var_name="series",
         value_name="idx",
     )
 
     region_color_scale = alt.Scale(
-        domain=["Region footfall-index", "Region omzet-index"],
+        domain=["Region footfall-index", "Region revenue index"],
         range=[PFM_PURPLE, PFM_RED],
     )
 

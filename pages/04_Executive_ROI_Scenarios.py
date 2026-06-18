@@ -183,13 +183,13 @@ view = view.sort_values("extra_gross_profit", ascending=False).head(10)
 out = view[["shop_name", "count_in", "sales_per_visitor", "conversion_rate", "ATV", "extra_gross_profit"]].copy()
 out.rename(columns={
     "shop_name": "store",
-    "count_in": "bezoekers",
+    "count_in": "visitors",
     "sales_per_visitor": "SPV",
     "conversion_rate": "conversion",
     "extra_gross_profit": "extra_brutowinst",
 }, inplace=True)
 
-out["bezoekers"]       = out["bezoekers"].map(fmt_int)
+out["visitors"]       = out["visitors"].map(fmt_int)
 out["SPV"]             = out["SPV"].map(lambda x: fmt_eur(x, 2))
 out["conversion"]       = out["conversion"].map(lambda x: fmt_pct(x, 2))
 out["ATV"]             = out["ATV"].map(lambda x: fmt_eur(x, 2))
